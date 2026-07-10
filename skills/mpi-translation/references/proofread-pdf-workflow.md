@@ -6,7 +6,7 @@ drift, repositioned phrases, extra content.
 
 ## Pattern
 
-The existing `scripts/proofread-pdf.py` is article-specific (hardcoded to
+The existing `toolkit/scripts/proofread-pdf.py` is article-specific (hardcoded to
 佛教徒的人生态度). For each new article, create a similarly-shaped script:
 
 ```
@@ -38,7 +38,7 @@ Hash = `md5('translate-files/<article>')[:6]`
   chunk-based matching instead of word-by-word comparison.
 - Section headers (I, II, III) may be present in DOCX body but filtered
   from PDF — not real discrepancies.
-- The existing `scripts/proofread-pdf.py` is hardcoded for 佛教徒的人生态度.
+- The existing `toolkit/scripts/proofread-pdf.py` is hardcoded for 佛教徒的人生态度.
   Do NOT reuse it for other articles without rewriting the body-start
   markers and filter patterns. Create article-specific scripts instead.
 - `git diff --word-diff` fails when one file is multi-line and the other

@@ -17,7 +17,7 @@ correspondence, generate `bilingual.dj` directly from the DOCX:
 4. Write bilingual.dj
 The DOCX English is the authoritative target text. No PDF needed.
 
-**Extraction approach**: start by adapting `scripts/gen-bilingual-docx.py`.
+**Extraction approach**: start by adapting `toolkit/scripts/gen-bilingual-docx.py`.
 For articles where the body has strict CN→EN→CN→EN alternation, the simple
 extraction in that script (CN line, blank, EN line, blank) works directly.
 

@@ -9,7 +9,7 @@ Add to `~/.hermes/config.yaml`:
 ```yaml
 skills:
   external_dirs:
-  - $MPI_PROJECT_ROOT/skills
+  - $MPI_PROJECT_ROOT/toolkit/skills
 ```
 
 {% Edit config.yaml directly — `hermes config set` stores list values as strings. %}
@@ -18,9 +18,9 @@ skills:
 
 | Name | What it does |
 |---|---|
-| `translation` | Translate Chinese↔English Buddhist/Dharma content |
-| `terms-search` | Full-text search across MPI term database |
-| `translation-review` | Review translations for quality issues |
-| `chinese-text-normalize` | Normalize Chinese markdown line breaks |
-| `pptx-translate` | Translate PowerPoint files |
-| `pdf-to-docx-conversion` | Convert PDFs to DOCX with layout preservation |
+| `mpi-translation` | Translate Chinese↔English Buddhist/Dharma content |
+| `mpi-terms-search` | Full-text search across MPI term database |
+| `mpi-translation-review` | Review translations for quality issues |
+| `mpi-chinese-text-normalize` | Normalize Chinese markdown line breaks |
+| `mpi-pptx-translate` | Translate PowerPoint files |
+| `mpi-pdf-to-docx-conversion` | Convert PDFs to DOCX with layout preservation |

@@ -1,5 +1,5 @@
 """Compare manuscript (DOCX English body) against typeset (PDF English body).
-Usage: python3 scripts/proofread-pdf.py <docx_path> <pdf_path>
+Usage: python3 toolkit/scripts/proofread-pdf.py <docx_path> <pdf_path>
 Output: sentences from DOCX not found in PDF, and word-level changes within matched sentences.
 """
 import re, sys, subprocess

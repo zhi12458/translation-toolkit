@@ -6,14 +6,14 @@ category: research
 
 # Terms Search
 
-Database: `$MPI_PROJECT_ROOT/terms-search/termlib.duckdb`
-CLI: `$MPI_PROJECT_ROOT/terms-search/search.py`
-Server: `$MPI_PROJECT_ROOT/terms-search/server.py`
+Database: `$MPI_PROJECT_ROOT/toolkit/terms-database/termlib.duckdb`
+CLI: `$MPI_PROJECT_ROOT/toolkit/terms-database/search.py`
+Server: `$MPI_PROJECT_ROOT/toolkit/terms-database/server.py`
 
 ## CLI (preferred)
 
 ```
-$MPI_PROJECT_ROOT/terms-search/search.py <query> [limit]
+$MPI_PROJECT_ROOT/toolkit/terms-database/search.py <query> [limit]
 ```
 
 Multi-word queries are ANDed. Searches both `zh` and `en` columns.
@@ -32,7 +32,7 @@ Use this inside `execute_code` scripts for batch lookups — no subprocess neede
 
 ## HTTP API (use only when CLI is insufficient)
 
-Start: `python3 $MPI_PROJECT_ROOT/terms-search/server.py` (port 8910)
+Start: `python3 $MPI_PROJECT_ROOT/toolkit/terms-database/server.py` (port 8910)
 
 - `GET /` — plain HTML UI (form + results table, no CSS)
 - `GET /` — plain HTML UI (form + results table, no CSS)
@@ -64,7 +64,7 @@ Errors return `{"error": "..."}` with HTTP 500 (API) or shown inline (UI).
 ## Direct DuckDB
 
 ```
-duckdb $MPI_PROJECT_ROOT/terms-search/termlib.duckdb
+duckdb $MPI_PROJECT_ROOT/toolkit/terms-database/termlib.duckdb
 ```
 
 Key tables: `unified_terms_flat` (zh, en, loc, source), individual source tables, `unified_terms` view.

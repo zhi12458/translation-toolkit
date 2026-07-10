@@ -36,7 +36,7 @@ Switch to self-mode output in that case, but keep a collegial tone.
    (Other mode only: read the translator's note if present, and address them by name.)
 2. Run a three-pass review using the detection rules below.
 3. Apply the R1–R14 editorial polish checklist.
-4. Check terminology against the terms DB (see `terms-search` skill).
+4. Check terminology against the terms DB (see `mpi-terms-search` skill).
 5. Verify that every source paragraph maps to a target paragraph with no missing
    or truncated content.
 6. Produce the correct artifact for your mode.
@@ -139,7 +139,7 @@ After the three passes, run these final checks.
 - Record only non-obvious or project-level decisions in
   `translation-findings.dj`.
 - After editing, regenerate `bilingual.dj` with
-  `../../scripts/gen-bilingual.py source.dj target.dj > bilingual.dj` and verify
+  `../../toolkit/scripts/gen-bilingual.py source.dj target.dj > bilingual.dj` and verify
   line counts match.
 
 ### Other mode
@@ -207,7 +207,7 @@ Any DB queries or proposed term changes.
   for this project's genres.
 - `references/buddhist-terminology.md` — register and convention notes for
   Buddhist/Dharma terms.
-- `../translation/SKILL.md` — the upstream translation skill that produces the
+- `../mpi-translation/SKILL.md` — the upstream translation skill that produces the
   `target.dj` this skill reviews.
-- `../terms-search/SKILL.md` — skill for querying the terms database before and
+- `../mpi-terms-search/SKILL.md` — skill for querying the terms database before and
   during review.

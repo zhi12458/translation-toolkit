@@ -10,7 +10,7 @@ After producing a first-pass translation, or when the user asks to check termino
 
 1. Read the full translated file. Extract all Chinese terms from `{% "TERM" (pinyin) = ENGLISH ... %}` blocks.
 
-2. Start the search server: `python3 $MPI_PROJECT_ROOT/terms-search/server.py &` (port 8910). It may already be running — check with `curl -s http://localhost:8910/`.
+2. Start the search server: `python3 $MPI_PROJECT_ROOT/toolkit/terms-database/server.py &` (port 8910). It may already be running — check with `curl -s http://localhost:8910/`.
 
 3. Batch-search each term via the HTTP API:
    ```

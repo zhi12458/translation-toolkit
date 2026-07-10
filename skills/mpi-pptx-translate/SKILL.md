@@ -12,7 +12,7 @@ Translate `.pptx` files between Chinese and English. Covers the full pipeline: e
 
 ### 1. Extract strings to YAML
 
-Run `scripts/extract.py original.pptx strings.yaml`. Produces YAML with entries:
+Run `toolkit/scripts/extract.py original.pptx strings.yaml`. Produces YAML with entries:
 
 ```yaml
 - slide: 1
@@ -57,7 +57,7 @@ Scan for:
 
 ### 4. Write back with layout fixes
 
-Run `scripts/build.py strings.yaml original.pptx translated.pptx`.
+Run `toolkit/scripts/build.py strings.yaml original.pptx translated.pptx`.
 
 The script:
 - Replaces text in matching paragraphs (clears all runs, sets first run)
@@ -80,5 +80,5 @@ The absorbed `pptx-translation` skill had alternate script names: `extract_pptx.
 
 ## Scripts
 
-- `scripts/extract.py` — extract strings from PPTX to YAML
-- `scripts/build.py` — write translations back with font shrink + auto-fit
+- `toolkit/scripts/extract.py` — extract strings from PPTX to YAML
+- `toolkit/scripts/build.py` — write translations back with font shrink + auto-fit

@@ -112,7 +112,7 @@ duckdb path/to/termlib.duckdb
 
 ## Step 4: Create unified views
 
-See `references/unified-view.sql` for the pattern. Key patterns:
+See `toolkit/references/unified-view.sql` for the pattern. Key patterns:
 - `UNION ALL` across all source tables
 - Normalize column names to `zh`, `en`, `loc` (出处), `source`
 - For paired-column sheets (e.g., `中文/英文` + `补充内容/英文_1`), emit two UNION branches

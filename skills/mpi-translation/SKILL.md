@@ -45,7 +45,7 @@ Quick-find in index: Thầy talks → `"Thích Nhất Hạnh"` + page ≤ 10; te
 ### Pre-flight accuracy check
 
 Before delivering a translation, run through the structured accuracy/readability
-taxonomy in `../translation-review/references/common-issues-taxonomy.md`.
+taxonomy in `../mpi-translation-review/references/common-issues-taxonomy.md`.
 Catching these before review saves iteration cycles:
 - Omission, over-literal renderings, over-free renderings, subject confusion,
   overtranslation, terminology errors
@@ -99,7 +99,7 @@ Read the English aloud — if a sentence can't be spoken in one breath, fix it.
 
 These are common patterns (not an exhaustive list). For the full taxonomy with
 more categories and examples, read
-`../translation-review/references/common-issues-taxonomy.md`.
+`../mpi-translation-review/references/common-issues-taxonomy.md`.
 
 Examples of systematic adjustments:
 
@@ -119,9 +119,9 @@ Examples of systematic adjustments:
    paper abstract, warm it up. Check against the MB corpus registers for the
    target genre.
 6. **Review-specific calques**. For *人生百问*-style Q&A, check the pattern
-   tables in `../translation-review/references/translation-pitfalls.md` for recurring
+   tables in `../mpi-translation-review/references/translation-pitfalls.md` for recurring
    stiff calques ("keen on," "more ultimate," "choice difficulty," etc.) and
-   the Buddhist-term register notes in `../translation-review/references/buddhist-terminology.md`.
+   the Buddhist-term register notes in `../mpi-translation-review/references/buddhist-terminology.md`.
 
 Do NOT apply these mechanically — each is a judgment call. A passive may be
 correct when the agent is unknown; a nominalization may be the right technical
@@ -204,7 +204,7 @@ The same words can imply different things in different cultural contexts.
 
 Run this self-check before you hand off a first-pass translation. The goal is to
 catch the most expensive errors while they are still cheap to fix. For the full
-post-translation review workflows, load `translation-review` (self mode for your own
+post-translation review workflows, load `mpi-translation-review` (self mode for your own
 translations, other mode for peer review).
 
 ### Accuracy
@@ -215,7 +215,7 @@ translations, other mode for peer review).
 - [ ] **No overtranslation**: no parenthetical expansions or explanations not in
   the source.
 - [ ] **Terminology**: key Buddhist terms checked against the MPI terms DB
-  (`terms-search` skill). Consistent within the file.
+  (`mpi-terms-search` skill). Consistent within the file.
 - [ ] **Source faithfulness**: no concepts added, no details dropped.
 
 ### Readability
@@ -246,7 +246,7 @@ When translating guided meditation scripts, exercise guides, or posture instruct
 
 ### article-specific scripts
 
-`scripts/proofread-pdf.py` is hardcoded for 佛教徒的人生态度 — body-start
+`toolkit/scripts/proofread-pdf.py` is hardcoded for 佛教徒的人生态度 — body-start
 markers, header patterns, slug regex. Do NOT reuse for other articles.
 Create article-specific scripts per `references/proofread-pdf-workflow.md`.
 
@@ -257,5 +257,5 @@ Create article-specific scripts per `references/proofread-pdf-workflow.md`.
 - `references/bilingual-format.md` — bilingual.dj layout: source/target adjacent, blank separator between pairs
 - `references/diacritics-convention.md` — diacritics rules
 - `references/proofread-pdf-workflow.md` — pattern for creating article-specific PDF-vs-DOCX comparison scripts
-- `../translation-review/references/common-issues-taxonomy.md` (cross-skill) — structured accuracy/readability checklist for pre-flight review
+- `../mpi-translation-review/references/common-issues-taxonomy.md` (cross-skill) — structured accuracy/readability checklist for pre-flight review
 - Baker, Mona. *In Other Words: A Coursebook on Translation*. 2nd ed. Routledge, 2011. — levels of equivalence (word, above-word, grammatical, textual, pragmatic) and non-equivalence strategies.
