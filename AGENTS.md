@@ -182,7 +182,7 @@ For producing PDFs from bilingual Chinese-English articles:
 
 - Template: `translate-files/lib/mpi-bilingual-template.typ`
 - Example host: `translate-files/从物品整理到心灵整理/mindful-organizing.typ`
-- Design notes: `toolkit/references/typst-template-design.md`
+- Design notes: `references/typst-template-design.md`
 - Produce rendered PDF files in: /tmp/
 
 ## Scripts
