@@ -1,0 +1,4 @@
+.git
+**/__pycache__
+**/__pypackages__
+fly.toml

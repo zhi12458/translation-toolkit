@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<title>Sources — 静心学堂翻译对照表</title>
+<h1>Sources</h1>
+<p><a href="/">search</a> | <a href="/sources.html">sources</a></p>
+
+{% if error %}<p>Error: {{ error }}</p>
+{% else %}
+<table border="1" cellpadding="4" cellspacing="0">
+  <tr><th>Source</th><th>Rows</th></tr>
+  {% for s in sources %}
+  <tr>
+    <td><a href="/?src={{ s.source }}">{{ s.source }}</a></td>
+    <td>{{ s.count }}</td>
+  </tr>
+  {% endfor %}
+  <tr><th>Total</th><th>{{ total }}</th></tr>
+</table>
+{% endif %}

@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<title>静心学堂中英文翻译对照表</title>
+<h1>静心学堂（非官方）中英文翻译对照表</h1>
+<p><a href="/">search</a> | <a href="/sources.html">sources</a></p>
+<form method="get">
+  <input name="q" value="{{ q }}" placeholder="query (e.g. 空性 emptiness)">
+  <input name="loc" value="{{ loc }}" placeholder="loc filter">
+  <input name="src" value="{{ src }}" placeholder="src filter">
+  <input name="limit" value="{{ limit }}" size="4" placeholder="limit">
+  <button type="submit">Search</button>
+</form>
+
+{% if searched %}
+{% if error %}<p>Error: {{ error }}</p>
+{% else %}
+<p>{{ count }} results</p>
+<table border="1" cellpadding="4" cellspacing="0">
+  <tr><th>ZH</th><th>EN</th><th>LOC</th><th>SRC</th></tr>
+  {% for r in results %}
+  <tr>
+    <td>{{ r.zh }}</td>
+    <td>{{ r.en }}</td>
+    <td>{{ r.loc or '' }}</td>
+    <td>{{ r.source }}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% endif %}
+{% endif %}

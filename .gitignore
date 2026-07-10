@@ -1,0 +1,5 @@
+__pycache__/
+__pypackages__/
+.~lock.*
+bilingual.dj
+commented.dj

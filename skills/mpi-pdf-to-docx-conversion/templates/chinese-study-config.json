@@ -1,0 +1,31 @@
+{
+  "_description": "Pre-configured for Chinese Sutra/study-material PDFs with STHeitiSC-HYShuSongErKW fonts",
+  "fonts": {
+    "title": "STHeitiSC-Medium",
+    "body": "HYShuSongErKW",
+    "page_num": "HelveticaNeue"
+  },
+  "thresholds": {
+    "section_header": 18,
+    "sub_header": 14,
+    "body": 12
+  },
+  "bullet_fonts": ["Wingdings", "Wingdings 2", "Wingdings 3", "Symbol"],
+  "skip_fonts": ["HelveticaNeue", "Arial-BoldMT", "ArialMT"],
+  "skip_size_max": 9.9,
+  "numbered_patterns": [
+    "^\\d+\\)",
+    "^\\d+\\.\\s*",
+    "^\\d+）",
+    "^\\d+、"
+  ],
+  "y_gap_threshold": 20,
+  "indent_body": 0.8,
+  "verse_markers": [
+    "感恩(?!恩)",
+    "愿我们",
+    "更愿",
+    "愿人们",
+    "愿世界"
+  ]
+}

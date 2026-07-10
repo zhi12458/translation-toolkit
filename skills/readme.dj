@@ -1,0 +1,26 @@
+# MPI Skills
+
+These skills live in this directory and are loaded via `~/.hermes/config.yaml`.
+
+## Install for Hermes
+
+Add to `~/.hermes/config.yaml`:
+
+```yaml
+skills:
+  external_dirs:
+  - $MPI_PROJECT_ROOT/skills
+```
+
+{% Edit config.yaml directly — `hermes config set` stores list values as strings. %}
+
+## Skills
+
+| Name | What it does |
+|---|---|
+| `translation` | Translate Chinese↔English Buddhist/Dharma content |
+| `terms-search` | Full-text search across MPI term database |
+| `translation-review` | Review translations for quality issues |
+| `chinese-text-normalize` | Normalize Chinese markdown line breaks |
+| `pptx-translate` | Translate PowerPoint files |
+| `pdf-to-docx-conversion` | Convert PDFs to DOCX with layout preservation |
