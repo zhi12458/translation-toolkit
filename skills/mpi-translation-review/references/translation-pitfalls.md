@@ -147,7 +147,7 @@ manufacture urgency the source doesn't have.
 | `pravāraṇā` | `Pavarana` | BAICKZ |
 
 Exception: `Kṣitigarbha` — DoT定稿 uses diacritics, so keep them.
-When in doubt, search the DB and follow the highest-priority source. See dharma-translation skill `references/diacritics-convention.md`.
+When in doubt, search the DB and follow the highest-priority source. See mpi-translation skill `references/diacritics-convention.md`.
 
 返贫 = become poor (from a non-poor state) due to medical costs. "Back" implies
 the person was previously poor — not necessarily true. This is about medical bankruptcy.
