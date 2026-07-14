@@ -2,21 +2,27 @@
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-import duckdb
+import sqlite3
 from flask import Flask, request, jsonify, render_template
 import search as s
 
 app = Flask(__name__)
 
+def _connect():
+    con = sqlite3.connect(s.DB)
+    con.execute("PRAGMA journal_mode=WAL")
+    return con
+
+
 def do_search(q, loc, src, limit):
-    with duckdb.connect(s.DB, read_only=True) as con:
-        rows = s.search(con, q, loc, src, limit)
-    return [{'zh': r[0], 'en': r[1], 'loc': r[2] or None, 'source': r[3]} for r in rows]
+    rows = s.search(q, loc=loc, src=src, limit=limit)
+    return [{'zh': r['zh'], 'en': r['en'], 'loc': r['loc'] or None, 'source': r['source']} for r in rows]
+
 
 def do_sources():
-    with duckdb.connect(s.DB, read_only=True) as con:
+    with _connect() as con:
         rows = con.execute(
-            'SELECT source, COUNT(*) AS cnt FROM unified_terms_flat GROUP BY source ORDER BY cnt DESC'
+            'SELECT source, COUNT(*) AS cnt FROM terms GROUP BY source ORDER BY cnt DESC'
         ).fetchall()
     return [{'source': r[0], 'count': r[1]} for r in rows]
 

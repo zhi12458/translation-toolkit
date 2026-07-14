@@ -1,11 +1,11 @@
 # Termbase Rebuild (from absorbed termbase-management)
 
-How to rebuild the terms DuckDB from source spreadsheets. This is the full pipeline from the now-archived `termbase-management` skill.
+How to rebuild the terms SQLite database from source spreadsheets. This is the full pipeline from the now-archived `termbase-management` skill.
 
 ## Prerequisites
 
 ```bash
-pip install openpyxl odfpy pyyaml duckdb
+pip install openpyxl odfpy pyyaml
 ```
 
 ## Step 1: Inspect spreadsheet structure
@@ -69,17 +69,23 @@ def dedup_headers(headers):
 - **CSV**: `csv.writer` — column-major, preserves all raw data
 - **YAML**: `yaml.dump(data, allow_unicode=True, default_flow_style=False, sort_keys=False, width=200)` — list of dicts
 
-## Step 3: Load into DuckDB
+## Step 3: Load into SQLite
 
 ```python
-import duckdb
-con = duckdb.connect('termlib.duckdb')
+import sqlite3
+import csv
 
-# Simple CSVs work with auto-detect:
-con.execute("""
-    CREATE TABLE table_name AS 
-    SELECT * FROM read_csv_auto('file.csv', header=true, all_varchar=true)
-""")
+con = sqlite3.connect('termlib.sqlite')
+
+# Simple CSVs work with csv.reader:
+with open('file.csv', 'r', encoding='utf-8') as f:
+    rows = list(csv.reader(f))
+headers = rows[0]
+data = rows[1:]
+col_defs = ', '.join(f'"{h}" TEXT' for h in headers)
+con.execute(f'CREATE TABLE "table_name" ({col_defs})')
+con.executemany(f'INSERT INTO "table_name" VALUES ({", ".join(["?"] * len(headers))})', data)
+con.commit()
 ```
 
 ### Pitfall: Multiline CSV fields
@@ -104,10 +110,10 @@ for i in range(0, len(data), batch_size):
     con.execute(f'INSERT INTO "{table}" VALUES {placeholders}', flat)
 ```
 
-### Pitfall: DuckDB CLI opens in-memory by default
-Running plain `duckdb` gives an empty database. Always pass the file path:
+### SQLite CLI
+Open the database file directly:
 ```
-duckdb path/to/termlib.duckdb
+sqlite3 path/to/termlib.sqlite
 ```
 
 ## Step 4: Create unified views
@@ -122,6 +128,6 @@ See `references/unified-view.sql` for the pattern. Key patterns:
 
 - **ODS reading**: Must traverse `odf.text.P` child elements, not direct text nodes
 - **Duplicate headers**: JSON/YAML dict silently overwrites duplicate keys — always deduplicate
-- **Multiline CSV + DuckDB**: `read_csv_auto` fails on CSVs with quoted newlines — use Python csv.reader
-- **DuckDB path**: Always explicit file path; `duckdb` alone is in-memory
+- **Multiline CSV**: Use Python `csv.reader` for CSVs with embedded newlines
+- **SQLite path**: Always pass the file path to `sqlite3`
 - **`execute_code` sandbox**: Does NOT share pip-installed packages — use `terminal` for Python scripts

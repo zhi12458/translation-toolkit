@@ -6,7 +6,7 @@ category: research
 
 # Terms Search
 
-Database: `toolkit/terms-database/termlib.duckdb`
+Database: `toolkit/terms-database/termlib.sqlite` (SQLite)
 CLI: `toolkit/terms-database/search.py`
 Server: `toolkit/terms-database/server.py`
 
@@ -61,20 +61,19 @@ Errors return `{"error": "..."}` with HTTP 500 (API) or shown inline (UI).
 | 禅意项目 | 14+11 | Zen program terms |
 | 公案 | 8 | Chan koans |
 
-## Direct DuckDB
+## Direct SQLite
 
 ```
-duckdb toolkit/terms-database/termlib.duckdb
+sqlite3 toolkit/terms-database/termlib.sqlite
 ```
 
-Key tables: `unified_terms_flat` (zh, en, loc, source), individual source tables, `unified_terms` view.
+Key table: `terms` (zh, en, loc, source).
 
 ## Rebuilding
 
 Terms data comes from `guide/03 术语库/`. To rebuild:
 1. Convert source xlsx/ods → CSV+YAML in `_output/`
-2. Rebuild DuckDB from CSVs
-3. Materialize `unified_terms_flat` view → table for performance
+2. Load CSVs into SQLite as the `terms` table (zh, en, loc, source)
 
 **Full rebuild pipeline:** See `references/termbase-rebuild.md` (absorbed from the `termbase-management` skill).
 

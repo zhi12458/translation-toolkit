@@ -1,29 +1,31 @@
 #!/usr/bin/env -S uv run --script
 # /// script
-# dependencies = ["duckdb"]
+# dependencies = []
 # ///
-"""Full-text search over MPI term database. Queries unified_terms_flat via DuckDB LIKE.
+"""Full-text search over MPI term database (SQLite).
 
 Module usage:
-    from search import search_terms
-    results = search_terms("空性")
-    results = search_terms("空性", limit=5, loc="心经", src="佛教术语")
+    from search import search
+    results = search("空性")
+    results = search("空性", limit=5, loc="心经", src="佛教术语")
     # returns list of dicts: {zh, en, loc, source}
 
 CLI usage:
-    python search.py <query> [limit]
-    python search.py 空性 loc:心经 src:公案
+    toolkit/terms-database/search.py <query> [limit]
+    toolkit/terms-database/search.py 空性 loc:心经 src:公案
 """
 
 import sys
 import os
-import duckdb
+import sqlite3
 
-DB = os.path.join(os.path.dirname(os.path.abspath(__file__)), "termlib.duckdb")
+DB = os.path.join(os.path.dirname(os.path.abspath(__file__)), "termlib.sqlite")
 
 
 def _connect():
-    return duckdb.connect(DB, read_only=True)
+    con = sqlite3.connect(DB)
+    con.execute("PRAGMA journal_mode=WAL")
+    return con
 
 
 def _search_rows(con, query, loc=None, src=None, limit=None):
@@ -45,7 +47,7 @@ def _search_rows(con, query, loc=None, src=None, limit=None):
         where += " AND source = ?"
         params.append(src)
 
-    sql = f"SELECT zh, en, loc, source FROM unified_terms_flat WHERE {where}"
+    sql = f"SELECT zh, en, loc, source FROM terms WHERE {where}"
     if limit is not None:
         sql += " LIMIT ?"
         params.append(limit)
@@ -55,7 +57,7 @@ def _search_rows(con, query, loc=None, src=None, limit=None):
 
 def search(query, loc=None, src=None, limit=20):
     """Search the terms database. Returns list of {zh, en, loc, source} dicts.
-    
+
     query: str — space-separated search terms (AND logic)
     loc: str — filter by loc column (LIKE match)
     src: str — filter by source column (exact match)
