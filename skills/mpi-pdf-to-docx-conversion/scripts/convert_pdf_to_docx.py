@@ -1,13 +1,21 @@
 #!/usr/bin/env python3
+# /// script
+# requires-python = ">=3.9"
+# dependencies = [
+#   "pymupdf",
+#   "python-docx",
+# ]
+# ///
+
 """
 Production-ready PDF-to-DOCX converter.
 Handles multi-language text, mixed fonts, bullets, numbered lists, verses,
 attributions, images, and flowing text across pages.
 
 Usage:
-    python convert_pdf_to_docx.py input.pdf output.docx
+    uv run convert_pdf_to_docx.py input.pdf output.docx
 
-Requires: pip install pymupdf python-docx
+Requires: uv (dependencies are declared in the /// script block above)
 """
 
 import sys
@@ -544,6 +552,6 @@ def convert_pdf_to_docx(pdf_path: str, docx_path: str, config: dict = None):
 # CLI
 if __name__ == "__main__":
     if len(sys.argv) != 3:
-        print("Usage: python convert_pdf_to_docx.py <input.pdf> <output.docx>")
+        print("Usage: uv run convert_pdf_to_docx.py <input.pdf> <output.docx>")
         sys.exit(1)
     convert_pdf_to_docx(sys.argv[1], sys.argv[2])

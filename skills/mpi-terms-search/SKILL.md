@@ -1,7 +1,8 @@
 ---
-name: terms-search
-description: Full-text search across the MPI term database. Use when translating or looking up Chinese-English Buddhist/MPI terminology.
+name: mpi-terms-search
+description: Full-text search across the MPI Buddhist/Dharma term database. Use when translating or reviewing Chinese-English Buddhist terminology. Do not use for general Chinese-English dictionary lookup outside MPI conventions.
 category: research
+compatibility: Requires Python 3; SQLite database is bundled.
 ---
 
 # Terms Search

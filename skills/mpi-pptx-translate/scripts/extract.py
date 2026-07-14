@@ -1,3 +1,11 @@
+# /// script
+# requires-python = ">=3.9"
+# dependencies = [
+#   "python-pptx",
+#   "pyyaml",
+# ]
+# ///
+
 import sys, yaml
 from pptx import Presentation
 
@@ -62,6 +70,9 @@ def extract(pptx_path):
 
 
 if __name__ == "__main__":
+    if len(sys.argv) != 3:
+        print("Usage: uv run extract.py <input.pptx> <output.yaml>", file=sys.stderr)
+        sys.exit(1)
     entries = extract(sys.argv[1])
     with open(sys.argv[2], "w") as f:
         yaml.dump(entries, f, allow_unicode=True, default_flow_style=False, sort_keys=False)

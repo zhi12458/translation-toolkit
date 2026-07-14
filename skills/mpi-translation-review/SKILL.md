@@ -1,13 +1,9 @@
 ---
-name: translation-review
+name: mpi-translation-review
 description: |
-  Unified review skill for Chinese-English Buddhist/Dharma translations.
-  Supports two modes:
-  - **self**: You translated the text. Edit target.dj directly.
-  - **other**: Someone else translated. Write review-comments.dj, do not edit target.dj.
-  What to review is identical in both modes — the same detection rules,
-  editorial standards, and terminology checks. Only the action differs: self
-  mode applies fixes directly; other mode records them for the translator.
+  Unified review skill for Chinese-English Buddhist/Dharma translations in djot format.
+  Use in self mode to edit your own target.dj, or in other mode to write review-comments.dj for a peer translator.
+  Do not use for non-djot formats or for non-Buddhist texts.
 ---
 
 # Translation Review (unified)

@@ -1,8 +1,9 @@
 ---
-name: translation
-description: Translate Chinese↔English Buddhist/Dharma content — register guidance from Mindfulness Bell corpus, tone, voice, cultural bridging technique.
+name: mpi-translation
+description: Translate Chinese↔English Buddhist/Dharma content. Use for oral talks, written articles, guided meditations, Q&A, and sutra commentary. Do not use for non-religious general Chinese-English translation, technical documentation, or marketing copy.
 inputs: source.dj (Chinese djot), or .docx via docx2dj.fish
 outputs: target.dj (English djot), bilingual.dj, edit-suggestions.dj
+compatibility: Requires pandoc for docx-to-djot conversion.
 ---
 
 # Translation
@@ -12,7 +13,7 @@ terms DB query, workflows, output format) are in AGENTS.md.
 
 ## Source context
 
-Before translating, understand the source's format and delivery context. Is it a transcript of an oral talk, a book excerpt, a guided meditation script, a Q&A, a written article, or another genre? The register shapes the translation. If the context is not clear from the file path or source content, ask the user before proceeding.
+Before translating, understand the source's format and delivery context. Is it a transcript of an oral talk, a book excerpt, a guided meditation script, a Q&A, a written article, or another genre? The register shapes the translation. If the context is not clear from the file path or source content, ask the user before proceeding. If you cannot identify the author, write the target text with the style of 济群法师.
 
 ## Mindfulness Bell Corpus
 

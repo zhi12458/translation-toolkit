@@ -1,7 +1,8 @@
 ---
-name: pptx-translate
-description: Translate PowerPoint files between Chinese and English — extract strings to YAML, translate, quality review, and write back with font-shrink + auto-fit for layout.
+name: mpi-pptx-translate
+description: Translate PowerPoint files between Chinese and English — extract strings to YAML, translate, quality review, and write back with font-shrink + auto-fit for layout. Use only for .pptx files. Do not use for .ppt, Google Slides exports, or PDFs.
 category: productivity
+compatibility: Requires Python 3.9+ and uv. Dependencies (python-pptx, pyyaml) are declared in the scripts' /// script metadata.
 ---
 
 # PPTX Translation
@@ -12,7 +13,13 @@ Translate `.pptx` files between Chinese and English. Covers the full pipeline: e
 
 ### 1. Extract strings to YAML
 
-Run `toolkit/scripts/extract.py original.pptx strings.yaml`. Produces YAML with entries:
+Run with `uv`:
+
+```bash
+uv run skills/mpi-pptx-translate/scripts/extract.py original.pptx strings.yaml
+```
+
+`uv` reads the `/// script` metadata block and installs `python-pptx` and `pyyaml` automatically. Produces YAML with entries:
 
 ```yaml
 - slide: 1
@@ -57,7 +64,9 @@ Scan for:
 
 ### 4. Write back with layout fixes
 
-Run `toolkit/scripts/build.py strings.yaml original.pptx translated.pptx`.
+```bash
+uv run skills/mpi-pptx-translate/scripts/build.py strings.yaml original.pptx translated.pptx
+```
 
 The script:
 - Replaces text in matching paragraphs (clears all runs, sets first run)
@@ -80,5 +89,5 @@ The absorbed `pptx-translation` skill had alternate script names: `extract_pptx.
 
 ## Scripts
 
-- `toolkit/scripts/extract.py` — extract strings from PPTX to YAML
-- `toolkit/scripts/build.py` — write translations back with font shrink + auto-fit
+- `uv run skills/mpi-pptx-translate/scripts/extract.py` — extract strings from PPTX to YAML
+- `uv run skills/mpi-pptx-translate/scripts/build.py` — write translations back with font shrink + auto-fit

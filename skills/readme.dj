@@ -14,6 +14,20 @@ skills:
 
 {% Replace `/path/to/mpi` with the absolute path to this repository. Edit config.yaml directly — `hermes config set` stores list values as strings. %}
 
+## Structure
+
+Each skill follows the Agent Skills layout:
+
+```
+skill-name/
+├── SKILL.md          # frontmatter + core instructions
+├── scripts/          # tiny deterministic CLIs
+├── references/       # docs loaded on demand
+└── assets/           # templates and static files
+```
+
+The `name` field in each `SKILL.md` frontmatter matches the directory name.
+
 ## Skills
 
 | Name | What it does |
