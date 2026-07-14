@@ -6,14 +6,14 @@ category: research
 
 # Terms Search
 
-Database: `$MPI_PROJECT_ROOT/toolkit/terms-database/termlib.duckdb`
-CLI: `$MPI_PROJECT_ROOT/toolkit/terms-database/search.py`
-Server: `$MPI_PROJECT_ROOT/toolkit/terms-database/server.py`
+Database: `toolkit/terms-database/termlib.duckdb`
+CLI: `toolkit/terms-database/search.py`
+Server: `toolkit/terms-database/server.py`
 
 ## CLI (preferred)
 
 ```
-$MPI_PROJECT_ROOT/toolkit/terms-database/search.py <query> [limit]
+toolkit/terms-database/search.py <query> [limit]
 ```
 
 Multi-word queries are ANDed. Searches both `zh` and `en` columns.
@@ -22,7 +22,7 @@ Multi-word queries are ANDed. Searches both `zh` and `en` columns.
 
 ```python
 import sys
-sys.path.insert(0, '$MPI_PROJECT_ROOT/terms-search')
+sys.path.insert(0, 'toolkit/terms-database')
 from search import search
 results = search("空性", limit=5, src="DoT定稿")
 # → list of {zh, en, loc, source} dicts
@@ -32,7 +32,7 @@ Use this inside `execute_code` scripts for batch lookups — no subprocess neede
 
 ## HTTP API (use only when CLI is insufficient)
 
-Start: `python3 $MPI_PROJECT_ROOT/toolkit/terms-database/server.py` (port 8910)
+Start: `python3 toolkit/terms-database/server.py` (port 8910)
 
 - `GET /` — plain HTML UI (form + results table, no CSS)
 - `GET /` — plain HTML UI (form + results table, no CSS)
@@ -64,14 +64,14 @@ Errors return `{"error": "..."}` with HTTP 500 (API) or shown inline (UI).
 ## Direct DuckDB
 
 ```
-duckdb $MPI_PROJECT_ROOT/toolkit/terms-database/termlib.duckdb
+duckdb toolkit/terms-database/termlib.duckdb
 ```
 
 Key tables: `unified_terms_flat` (zh, en, loc, source), individual source tables, `unified_terms` view.
 
 ## Rebuilding
 
-Terms data comes from `$MPI_PROJECT_ROOT/guide/03 术语库/`. To rebuild:
+Terms data comes from `guide/03 术语库/`. To rebuild:
 1. Convert source xlsx/ods → CSV+YAML in `_output/`
 2. Rebuild DuckDB from CSVs
 3. Materialize `unified_terms_flat` view → table for performance

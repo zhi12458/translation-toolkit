@@ -9,10 +9,10 @@ Add to `~/.hermes/config.yaml`:
 ```yaml
 skills:
   external_dirs:
-  - $MPI_PROJECT_ROOT/toolkit/skills
+  - /path/to/mpi/toolkit/skills
 ```
 
-{% Edit config.yaml directly — `hermes config set` stores list values as strings. %}
+{% Replace `/path/to/mpi` with the absolute path to this repository. Edit config.yaml directly — `hermes config set` stores list values as strings. %}
 
 ## Skills
 

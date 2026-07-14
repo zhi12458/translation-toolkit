@@ -8,7 +8,7 @@ Import directly in `execute_code` scripts — no subprocess, no server, no text 
 
 ```python
 import sys
-sys.path.insert(0, '$MPI_PROJECT_ROOT/terms-search')
+sys.path.insert(0, 'toolkit/terms-database')
 from search import search
 
 results = search("三级修学", limit=5)
@@ -20,7 +20,7 @@ results = search("空性", loc="心经", src="DoT定稿", limit=5)
 
 ```python
 import sys
-sys.path.insert(0, '$MPI_PROJECT_ROOT/terms-search')
+sys.path.insert(0, 'toolkit/terms-database')
 from search import search
 
 terms = ["三无漏学", "八步三禅", "闻思修", ...]

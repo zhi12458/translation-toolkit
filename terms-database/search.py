@@ -1,4 +1,7 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run --script
+# /// script
+# dependencies = ["duckdb"]
+# ///
 """Full-text search over MPI term database. Queries unified_terms_flat via DuckDB LIKE.
 
 Module usage:
