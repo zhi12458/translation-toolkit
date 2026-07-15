@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run --script
 # /// script
 # requires-python = ">=3.9"
 # dependencies = [
@@ -13,7 +13,7 @@ Handles multi-language text, mixed fonts, bullets, numbered lists, verses,
 attributions, images, and flowing text across pages.
 
 Usage:
-    uv run convert_pdf_to_docx.py input.pdf output.docx
+    ./convert_pdf_to_docx.py input.pdf output.docx
 
 Requires: uv (dependencies are declared in the /// script block above)
 """
@@ -552,6 +552,6 @@ def convert_pdf_to_docx(pdf_path: str, docx_path: str, config: dict = None):
 # CLI
 if __name__ == "__main__":
     if len(sys.argv) != 3:
-        print("Usage: uv run convert_pdf_to_docx.py <input.pdf> <output.docx>")
+        print("Usage: ./convert_pdf_to_docx.py <input.pdf> <output.docx>")
         sys.exit(1)
     convert_pdf_to_docx(sys.argv[1], sys.argv[2])

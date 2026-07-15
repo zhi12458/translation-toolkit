@@ -1,3 +1,4 @@
+#!/usr/bin/env -S uv run --script
 # /// script
 # requires-python = ">=3.9"
 # dependencies = []
@@ -11,7 +12,7 @@ Three file patterns:
 2. Mostly-paragraph with stray breaks + outline TOC -> join broken lines, preserve list items
 3. Already fine -> skip (idempotent)
 
-Usage: uv run normalize_breaks.py <directory>
+Usage: ./normalize_breaks.py <directory>
 """
 
 import re
@@ -162,7 +163,7 @@ def process_file(filepath):
 
 def main():
     if len(sys.argv) != 2:
-        print("Usage: uv run normalize_breaks.py <directory>", file=sys.stderr)
+        print("Usage: ./normalize_breaks.py <directory>", file=sys.stderr)
         sys.exit(1)
     workdir = Path(sys.argv[1])
     files = sorted(workdir.glob('*.md'))

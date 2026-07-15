@@ -1,3 +1,4 @@
+#!/usr/bin/env -S uv run --script
 # /// script
 # requires-python = ">=3.9"
 # dependencies = [
@@ -77,6 +78,6 @@ def build(yaml_path, src_path, out_path):
 
 if __name__ == "__main__":
     if len(sys.argv) != 4:
-        print("Usage: uv run build.py <strings.yaml> <input.pptx> <output.pptx>", file=sys.stderr)
+        print("Usage: ./build.py <strings.yaml> <input.pptx> <output.pptx>", file=sys.stderr)
         sys.exit(1)
     build(sys.argv[1], sys.argv[2], sys.argv[3])

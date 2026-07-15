@@ -2,7 +2,7 @@
 name: mpi-pptx-translate
 description: Translate PowerPoint files between Chinese and English — extract strings to YAML, translate, quality review, and write back with font-shrink + auto-fit for layout. Use only for .pptx files. Do not use for .ppt, Google Slides exports, or PDFs.
 category: productivity
-compatibility: Requires Python 3.9+ and uv. Dependencies (python-pptx, pyyaml) are declared in the scripts' /// script metadata.
+compatibility: Requires Python 3.9+ and uv. The scripts' shebang invokes `uv run --script`; dependencies (python-pptx, pyyaml) are declared in the `/// script` metadata.
 ---
 
 # PPTX Translation
@@ -13,13 +13,13 @@ Translate `.pptx` files between Chinese and English. Covers the full pipeline: e
 
 ### 1. Extract strings to YAML
 
-Run with `uv`:
+Run the script directly:
 
 ```bash
-uv run skills/mpi-pptx-translate/scripts/extract.py original.pptx strings.yaml
+skills/mpi-pptx-translate/scripts/extract.py original.pptx strings.yaml
 ```
 
-`uv` reads the `/// script` metadata block and installs `python-pptx` and `pyyaml` automatically. Produces YAML with entries:
+The shebang invokes `uv run --script`, which reads the `/// script` metadata block and installs `python-pptx` and `pyyaml` automatically. Produces YAML with entries:
 
 ```yaml
 - slide: 1
@@ -65,7 +65,7 @@ Scan for:
 ### 4. Write back with layout fixes
 
 ```bash
-uv run skills/mpi-pptx-translate/scripts/build.py strings.yaml original.pptx translated.pptx
+skills/mpi-pptx-translate/scripts/build.py strings.yaml original.pptx translated.pptx
 ```
 
 The script:
@@ -89,5 +89,5 @@ The absorbed `pptx-translation` skill had alternate script names: `extract_pptx.
 
 ## Scripts
 
-- `uv run skills/mpi-pptx-translate/scripts/extract.py` — extract strings from PPTX to YAML
-- `uv run skills/mpi-pptx-translate/scripts/build.py` — write translations back with font shrink + auto-fit
+- `skills/mpi-pptx-translate/scripts/extract.py` — extract strings from PPTX to YAML
+- `skills/mpi-pptx-translate/scripts/build.py` — write translations back with font shrink + auto-fit

@@ -1,7 +1,7 @@
 ---
 name: mpi-chinese-text-normalize
 description: Normalize Chinese markdown files by removing extraneous mid-sentence line breaks from fixed-width exports while preserving TOC structures, section headers, and intentional paragraph breaks. Do not use for English prose, wiki-link index files, or mixed CJK/English documents without manual review.
-compatibility: Requires Python 3.9+ and uv. The script uses only the standard library.
+compatibility: Requires Python 3.9+ and uv. The script's shebang invokes `uv run --script`; it uses only the standard library.
 ---
 
 When Chinese text has hard line breaks at a fixed width (~20-25 chars) — common in PDF exports, OCR output, or poorly-converted documents — use this skill to join them into flowing paragraphs.
@@ -14,13 +14,13 @@ When Chinese text has hard line breaks at a fixed width (~20-25 chars) — commo
 
 ## Approach
 
-Run with `uv`:
+Run the script directly:
 
 ```bash
-uv run skills/mpi-chinese-text-normalize/scripts/normalize_breaks.py <directory>
+skills/mpi-chinese-text-normalize/scripts/normalize_breaks.py <directory>
 ```
 
-It processes all `.md` files in the directory.
+The shebang invokes `uv run --script`. It processes all `.md` files in the directory.
 
 The script handles three file patterns:
 

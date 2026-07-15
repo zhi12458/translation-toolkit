@@ -2,7 +2,7 @@
 name: mpi-pdf-to-docx-conversion
 description: Convert flowing text PDFs (Chinese or multi-language) to DOCX with proper fonts, styles, native bullets, lists, and embedded images. Use for text-based PDFs. Do not use for scanned/image PDFs, form-heavy PDFs, or documents where exact page layout must be preserved.
 license: MIT
-compatibility: Requires Python 3.9+ and uv. Dependencies (pymupdf, python-docx) are declared in the script's /// script metadata.
+compatibility: Requires Python 3.9+ and uv. The script's shebang invokes `uv run --script`; dependencies (pymupdf, python-docx) are declared in the `/// script` metadata.
 ---
 
 # PDF-to-DOCX Conversion
@@ -11,13 +11,13 @@ Convert text-based PDF documents (including CJK) into structured DOCX files that
 
 ## Quick start
 
-For most PDFs, run the bundled converter with `uv`:
+For most PDFs, run the bundled converter directly:
 
 ```bash
-uv run skills/mpi-pdf-to-docx-conversion/scripts/convert_pdf_to_docx.py input.pdf output.docx
+skills/mpi-pdf-to-docx-conversion/scripts/convert_pdf_to_docx.py input.pdf output.docx
 ```
 
-`uv` reads the `/// script` metadata block in the script and installs `pymupdf` and `python-docx` automatically.
+The shebang invokes `uv run --script`, which reads the `/// script` metadata block and installs `pymupdf` and `python-docx` automatically.
 
 For documents with unusual fonts or structure, inspect first and pass a config dict. See `references/config-patterns.md` for the config schema and common patterns.
 
