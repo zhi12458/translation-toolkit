@@ -39,41 +39,35 @@ Generated files (`bilingual.dj`) are not committed either.
 
 ## Translation State Machine
 
-All translation work follows this deterministic workflow. Non-deterministic LLM work (drafting, reviewing) happens at the edges; the states and transitions are fixed.
+Non-deterministic LLM work happens at the states; transitions are fixed.
 
-```mermaid
-stateDiagram-v2
-    [*] --> idle
-    idle --> translating: SOURCE_LOADED
-    idle --> other_reviewing: BILINGUAL_LOADED
-    translating --> bilingual_ready: TRANSLATION_DRAFTED
-    bilingual_ready --> self_reviewing: BILINGUAL_GENERATED
-    self_reviewing --> translating: SELF_REJECTED
-    self_reviewing --> other_reviewing: SELF_APPROVED [peer review required]
-    self_reviewing --> approved: SELF_APPROVED [no peer review]
-    note right of self_reviewing
-        peer_review_required flag decides the branch
-    end note
-    other_reviewing --> translating: PEER_REJECTED
-    other_reviewing --> approved: PEER_APPROVED
-    approved --> typesetting: TYPESET_REQUESTED
-    approved --> done: COMPLETE
-    typesetting --> done: TYPESET_COMPLETE
-    done --> [*]
-```
+| Current state | Event / condition | Next state | Notes |
+|---|---|---|---|
+| `*start*` | source loaded | `idle` | Begin from a new source. |
+| `*start*` | bilingual loaded | `idle` | Begin from an existing review file. |
+| `idle` | `SOURCE_LOADED` | `translating` | |
+| `idle` | `BILINGUAL_LOADED` | `other_reviewing` | |
+| `translating` | `TRANSLATION_DRAFTED` | `bilingual_ready` | |
+| `bilingual_ready` | `BILINGUAL_GENERATED` | `self_reviewing` | |
+| `self_reviewing` | `SELF_REJECTED` | `translating` | |
+| `self_reviewing` | `SELF_APPROVED` and peer review required | `other_reviewing` | `peer_review_required` flag decides the branch. |
+| `self_reviewing` | `SELF_APPROVED` and no peer review | `approved` | |
+| `other_reviewing` | `PEER_REJECTED` | `translating` | |
+| `other_reviewing` | `PEER_APPROVED` | `approved` | |
+| `approved` | `TYPESET_REQUESTED` | `typesetting` | Optional. |
+| `approved` | `COMPLETE` | `done` | |
+| `typesetting` | `TYPESET_COMPLETE` | `done` | |
 
 States:
 
-| State | Meaning | Output artifact |
-|---|---|---|
-| `idle` | Waiting for source or an existing bilingual file. | — |
-| `translating` | Agent loads `mpi-translation` + `mpi-terms-search` skills and drafts `target.dj`. | `target.dj` |
-| `bilingual_ready` | `bilingual.dj` generated from `source.dj` + `target.dj`. | `bilingual.dj` |
-| `self_reviewing` | Self-review with unified ruleset (self mode). Edit target.dj. | `target.dj` (edited) |
-| `other_reviewing` | Peer review with unified ruleset (other mode). Write review-comments.dj. | `review-comments.dj` |
-| `approved` | Translation accepted. May typeset or finish. | — |
-| `typesetting` | Producing PDF/DOCX from approved bilingual content. | `.pdf` / `.docx` |
-| `done` | Complete. | — |
+: `idle` — Waiting for source or an existing bilingual file.
+: `translating` — Draft `target.dj`.
+: `bilingual_ready` — `bilingual.dj` generated from `source.dj` + `target.dj`.
+: `self_reviewing` — Self-review with `mpi-translation-review` (self mode); edit `target.dj`.
+: `other_reviewing` — Peer review with `mpi-translation-review` (other mode); write `review-comments.dj`.
+: `approved` — Translation accepted; may typeset or finish.
+: `typesetting` — Produce PDF/DOCX.
+: `done` — Complete.
 
 ## Workflow A: Translation（翻译）
 
