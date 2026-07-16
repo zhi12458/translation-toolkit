@@ -1,4 +1,7 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run --script
+# /// script
+# dependencies = ["flask"]
+# ///
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
