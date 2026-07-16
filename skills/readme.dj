@@ -1,10 +1,12 @@
 # MPI Skills
 
-These skills live in this directory and are loaded via `~/.hermes/config.yaml`.
+These skills live in this directory and are loaded by your agent from this path.
 
-## Install for Hermes
+## Install
 
-Add to `~/.hermes/config.yaml`:
+Add the absolute path to this directory to your agent's external skill paths.
+For Oh My Pi and compatible agents, this is usually a config file with an
+`external_dirs` list:
 
 ```yaml
 skills:
@@ -12,7 +14,7 @@ skills:
   - /path/to/mpi/toolkit/skills
 ```
 
-{% Replace `/path/to/mpi` with the absolute path to this repository. Edit config.yaml directly — `hermes config set` stores list values as strings. %}
+{% Replace `/path/to/mpi` with the absolute path to your workspace. %}
 
 ## Structure
 
