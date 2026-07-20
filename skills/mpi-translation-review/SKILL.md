@@ -85,9 +85,13 @@ issue with line/paragraph references.
 - **D2 Cultural anachronism.** Modern concepts projected onto classical material.
   Example: translating 般若 as "wisdom" in a scholarly context may flatten the
   term; in a popular talk it may be exactly right.
-- **D3 Tone / voice of the teacher.** For oral talks, preserve the speaker's
-  warmth, rhetorical questions, and direct address. Do not flatten into essay
-  prose.
+- **D3 Tone AND voice (语气) of the teacher.** For oral talks, preserve the
+  speaker's warmth, rhetorical questions, and direct address. Beyond register,
+  check the 语气 markers in `../mpi-translation/SKILL.md` → "Speaker's Voice
+  (语气)": rhetorical questions kept as questions, first-person teacher asides
+  ("我经常说") kept in first person, reasoning connectives (可见, 所以说)
+  preserved, inclusive we/you address, homely analogies left concrete, gentle
+  rather than scolding admonition. Do not flatten into essay prose.
 - **D4 Implicit meaning / implicature.** What the source implies but does not say
   (e.g., irony, conventional politeness, Gricean maxims). Ensure the implication
   survives or is compensated.

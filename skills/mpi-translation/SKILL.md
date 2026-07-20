@@ -41,6 +41,40 @@ Quick-find in index: Thầy talks → `"Thích Nhất Hạnh"` + page ≤ 10; te
 4. **Voice**: Direct address ("you"), concrete images, and oral rhythm make Dharma land in English. Abstract noun chains (common in Chinese→English translationese) kill it.
 5. **Sutra quotes**: Use standard English Buddhist idiom. Check terse-idiom conventions (e.g., Diamond Sutra "lives" not "bodies").
 
+## Speaker's Voice (语气)
+
+Tone (register, formality) is not enough — preserve the speaker's 语气: the
+stance and manner carried by sentence mood. Reviewers have flagged translations
+that got the tone right but flattened the teacher's voice. 语气 lives in:
+
+- **Sentence mood.** Rhetorical questions stay questions ("幸福在哪里？" →
+  "Where is happiness?", not "Happiness is nowhere to be found.").
+  Exclamations and wonder stay exclamatory. Do not convert the speaker's
+  questioning into declarations.
+- **First-person teacher asides.** 济群法师 often speaks in his own voice:
+  "我经常说……", "我曾在讲座中多次谈到……", "由此我想到……". Keep the
+  first person — do not flatten to "it is often said" or impersonal prose.
+  These asides are how he establishes presence with the audience.
+- **Reasoning connectives.** His talks argue step by step: 可见, 所以说,
+  事实上, 问题在于. Render the logical gait ("So it is clear that…", "That
+  is why…", "In fact…") rather than dropping it — the reasoned,
+  unhurried persuasion IS his voice.
+- **Inclusive address.** Default "we" for shared human condition, "you" when
+  he turns to the listener. Do not drift into abstract third person ("one",
+  "people") where the source speaks as teacher-to-audience.
+- **Everyday analogies, plainly told.** Rotting apples, leaking boats,
+  teacups, face masks — keep the homely image concrete and unvarnished;
+  do not upgrade it to literary language or explain it away.
+- **Gentle admonition, never scolding.** He points out folly with warmth and
+  a little humor (the "有点烦" pop song, Mo Yan's dodge). Keep the lightness;
+  avoid both sermonizing severity and jokey casualness.
+- **Measured authority.** Calm, composed, unhurried. No hype, no exclamation-
+  point enthusiasm, no academic hedging ("arguably", "it could be said").
+
+Check: read a paragraph aloud as if delivering a talk to a lay audience. If it
+sounds like an essay, a lecture abstract, or a motivational speaker, the 语气
+has been lost.
+
 ## Pitfalls
 
 ### Pre-flight accuracy check
