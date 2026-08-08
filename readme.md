@@ -99,6 +99,7 @@ generated; do not edit it by hand or commit it.
 | Convert `.docx` to `.dj` | `./scripts/docx2dj.fish input.docx output.dj` |
 | Convert `target.dj` to `.docx` | `./scripts/dj2docx.fish ../translate-files/展示/target.dj` |
 | Compile a Typst file to PDF | `./scripts/compile-typst.fish ../translate-files/my-article/my-article.typ` |
+| Run the translation gate | `./scripts/check-translation.py ../translate-files/my-article/` — 11 deterministic checks; exit 1 on any FAIL |
 | Search the term database | `./terms-database/search.py 空性` |
 | Run the term database UI | `./terms-database/server.py` then open <http://127.0.0.1:8910> |
 
@@ -110,7 +111,7 @@ Docs, as arranged by your project coordinator.
 
 ## Learn more
 
-- `AGENTS.md` — full MPI project conventions, translation workflows, and review rules.
+- `AGENTS.md` — full MPI project conventions, translation workflows, review rules, and Workflow C: the herdr batch workflow for translating or reviewing many books in parallel (one omp pane per book).
 - `skills/readme.dj` — how the skills are organized.
 - `references/` — design notes, formatting guides, and other reference materials.
 

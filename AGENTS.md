@@ -159,6 +159,82 @@ else?" after a direct-edit pass, do one more full systematic read and batch agai
 
 ---
 
+## Workflow C: Batch Translate / Review with Herdr（批量翻译/审阅）
+
+Run one book/article per omp session in its own herdr pane. Proven on the
+9-book batch (2026-08-07): 9 review panes (`omp --model slow`), each moved to
+its own tab, then one apply pass per pane, all 9 green on the check suite.
+
+### Setup
+
+1. One herdr workspace; the main omp session in the root pane orchestrates.
+2. Rename each book dir with a shared batch prefix so they sort and zip
+   together: `batch0-21【《心经》的人生智慧】`, `batch0-55【…】`, …
+3. Split one pane per book. `herdr pane split --cwd <dir>` does NOT stick
+   (panes launch in the workspace root) — pass the absolute book dir to omp's
+   own `--cwd` at launch instead.
+
+```fish
+# 5 right of the main pane, then 4 below it
+r=$(herdr pane split --current --direction right --no-focus)
+p=$(echo "$r" | jq -r '.result.pane.pane_id')
+# repeat: herdr pane split --pane $prev --direction down --no-focus
+herdr pane rename <pane> review-<book>   # label each pane
+```
+
+4. Launch the slow model in every pane (background all, then `wait`):
+
+```fish
+herdr pane run w7:p2 "omp --model slow --cwd /abs/path/to/book-dir" &
+# ... one line per book
+wait
+```
+
+Verify each pane landed in its book dir:
+`herdr pane read <pane> --source recent-unwrapped --lines 8` — the TUI title
+shows the dir.
+
+5. Submit the review prompt (B below) to all panes at once. Poll
+   `herdr pane get <pane> | jq -r '.result.pane.agent_status'` until every
+   pane is `idle`/`done` (allow ~1 h for long books).
+6. Move each pane to its own tab so the batch is watchable while it runs:
+   `herdr pane move <pane> --new-tab --label <name> --no-focus`.
+7. After all reviews finish, submit the apply prompt (C below) to every pane
+   again, poll to completion, then gate with `check-translation.py` and
+   spot-check that fixes actually landed in `target.dj`.
+8. Package: `zip -r <batch>-reviewed.zip batch0-*/` and verify the entry count
+   (9 books × 6 files each = 63 entries).
+
+### The three prompts
+
+**A — Translate a book** (one session per book, Workflow A):
+
+> Translate the book <NAME> (file: <NAME>.docx) from Chinese to English for the MPI translation project. Follow Workflow A in ../../toolkit/AGENTS.md: (1) load the mpi-translation and mpi-terms-search skills from ../../toolkit/skills/; (2) extract the Chinese source with ../../toolkit/scripts/docx2dj.fish '<NAME>.docx' into source.dj; (3) translate the ENTIRE book into target.dj (English; line count matches source; you ARE the model — no external translation APIs; look up key Buddhist terms with ../../toolkit/terms-database/search.py); (4) generate bilingual.dj: ../../toolkit/scripts/gen-bilingual.py source.dj target.dj > bilingual.dj; (5) self-review with mpi-translation-review (self mode), edit target.dj, and write edit-suggestions.dj for terminology issues; (6) regenerate bilingual.dj and verify source/target line counts match. Deliverables in this folder: source.dj, target.dj, bilingual.dj, edit-suggestions.dj. Do not commit binaries or bilingual.dj. Report when done.
+
+**B — Review a book** (herdr pane, slow model; writes `review-findings.dj` only):
+
+> Review the translation in this directory (your cwd is the book dir). Files: source.dj (Chinese source), target.dj (English translation), bilingual.dj (bilingual), edit-suggestions.dj (prior edit suggestions, may be stale). Read source and target fully and review the English translation for: (1) accuracy vs source — mistranslations, omissions, additions, meaning drift; (2) Buddhist terminology — consistent, standard renderings; (3) fluency and register — natural, idiomatic English appropriate to the genre; (4) completeness — every source section covered. Write findings to review-findings.dj in this directory, organized by severity (critical/major/minor), each with location and a concrete fix. Do NOT modify source.dj, target.dj, or bilingual.dj. End your final message with a one-paragraph summary.
+
+**C — Apply findings** (same pane, direct-edit mode):
+
+> Apply your review findings now. This is direct-edit mode per project convention. 1) Read review-findings.dj and target.dj fully. 2) Apply EVERY actionable finding (all must-fix and considerations) to target.dj with exact-string replacements, batched in one pass. 3) CRITICAL: do not add or remove any line — source.dj and target.dj line counts must remain identical. 4) Regenerate bilingual.dj: <abs path>/gen-bilingual.py source.dj target.dj > bilingual.dj 5) Run <abs path>/check-translation.py . and report which checks pass/fail. Report what you changed and the check result.
+
+### Gotchas（踩过的坑）
+
+- `herdr pane split --cwd <dir>` doesn't stick — launch omp with `--cwd <absolute path>` instead.
+- Write the poll loop carefully: wait for `agent_status` to reach `idle`/`done` with a deadline. The naive first version inverted the logic and reported "done" instantly.
+- Line-count parity is load-bearing: `gen-bilingual.py` pairs lines by index and the check gate FAILs on drift. Apply fixes with exact-string replacements; never insert or delete lines (a blank-line fix was deliberately skipped in the batch for exactly this reason).
+- `check-translation.py` calibration facts (all learned on the 9-book run):
+  - CJK leakage ignores djot anchors/links (`{#...}`, `(...)`) — structural markup legitimately contains Chinese.
+  - Only strictly-Chinese punctuation flags (`，。、；：？！《》【】（）`); `—` `“”` `’` `·` are legitimate English.
+  - Emphasis = preservation on the same line (source `*…*` must survive in target), not count parity — targets legitimately add italics for titles/Sanskrit.
+  - Digit fidelity understands 万/亿 scaling, 多, word and comma forms (180亿 → "18 billion", 1300多万 → "13+ million"), and excludes TOC page numbers (`[N](#...)`), which the convention drops.
+  - Use `--allow-cjk 人` for intentional Chinese (e.g. a character whose strokes the text explains) and `--term-map term-map.md` to check terminology fidelity; without a term map that check is skipped.
+- `--model slow` is omp's model-role flag for the slow/reasoning model; confirm the exact flag with `omp --help` if unsure.
+- Reviews are the quality gate: the apply pass is what lands findings in `target.dj` (book 21 alone took 26 exact-string replacements). The gate proves mechanics, not quality.
+
+---
+
 ## Djot
 
 - Comments: `{% ... %}`
@@ -190,6 +266,7 @@ regenerating the same Python in execute_code each turn.
 - `toolkit/scripts/dj2docx.fish <target.dj>` — pandoc .dj → .docx in `/tmp/`
 - `toolkit/scripts/proofread-pdf.py <docx> <pdf>` — word-level diff between manuscript and typeset PDF
 - `toolkit/scripts/gen-bilingual.py <source.dj> <target.dj>` — produce `bilingual.dj` on stdout; run as `gen-bilingual.py source.dj target.dj > bilingual.dj`
+- `toolkit/scripts/check-translation.py <book_dir>` — deterministic translation gate: line/paragraph/heading parity, emphasis preservation, CJK & Chinese-punctuation leakage, digit fidelity (万/亿-aware), terminology vs term map, bilingual freshness. Exit 1 on any FAIL. Run before delivering a translation; keep green as a regression suite.
 - `toolkit/scripts/gen-bilingual-<name>-<hash>.py` — article-specific extraction from DOCX or source/target pairing
 - `toolkit/scripts/compile-typst.fish <typ>` — compile a Typst file to PDF
 
