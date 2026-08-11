@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://codeberg.org/eastwind/translation-toolkit/raw/branch/main/schemas/term-map.schema.json",
+  "title": "MPI term-map.yaml",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "terms"],
+  "properties": {
+    "version": {"const": 1},
+    "terms": {
+      "description": "One selected project sense per unique source term; duplicate source values are rejected by the gate.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["source", "sense", "preferred", "allowed", "forbidden", "sources", "rationale", "status"],
+        "properties": {
+          "source": {"type": "string", "minLength": 1},
+          "sense": {"type": "string", "minLength": 1},
+          "preferred": {"type": "string", "minLength": 1},
+          "allowed": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+          "forbidden": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+          "sources": {"type": "array", "items": {"type": "string"}, "minItems": 1},
+          "rationale": {"type": "string"},
+          "status": {"enum": ["selected", "needs_human"]},
+          "reviewer": {"type": "string"}
+        }
+      }
+    }
+  }
+}

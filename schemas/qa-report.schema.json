@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://codeberg.org/eastwind/translation-toolkit/raw/branch/main/schemas/qa-report.schema.json",
+  "title": "MPI qa-report.json",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["target", "mode", "overall", "passed", "warned", "skipped", "failed", "details", "approval"],
+  "properties": {
+    "target": {"type": "string"},
+    "mode": {"enum": ["draft", "strict"]},
+    "overall": {"enum": ["PASS", "WARN", "FAIL"]},
+    "passed": {"type": "array", "items": {"type": "string"}},
+    "warned": {"type": "array", "items": {"type": "string"}},
+    "skipped": {"type": "array", "items": {"type": "string"}},
+    "failed": {"type": "array", "items": {"type": "string"}},
+    "details": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["status", "detail"],
+        "properties": {
+          "status": {"enum": ["PASS", "WARN", "SKIP", "FAIL"]},
+          "detail": {"type": "string"}
+        }
+      }
+    },
+    "approval": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["approved", "approver"],
+      "properties": {
+        "approved": {"type": "boolean"},
+        "approver": {"type": "string"},
+        "note": {"type": "string"}
+      }
+    }
+  }
+}

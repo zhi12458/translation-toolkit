@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://codeberg.org/eastwind/translation-toolkit/raw/branch/main/schemas/review-finding.schema.json",
+  "title": "One line of review-findings.jsonl",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["finding_id", "paragraph_id", "severity", "category", "message", "suggestion", "status", "reviewer"],
+  "properties": {
+    "finding_id": {"type": "string", "minLength": 1},
+    "paragraph_id": {"type": "string", "minLength": 1},
+    "severity": {"enum": ["critical", "major", "minor", "discussion"]},
+    "category": {"enum": ["meaning", "omission", "addition", "terminology", "scripture", "register", "fluency", "format", "other"]},
+    "message": {"type": "string", "minLength": 1},
+    "suggestion": {"type": "string"},
+    "status": {"enum": ["open", "resolved", "rejected", "deferred"]},
+    "reviewer": {"type": "string", "minLength": 1},
+    "resolution_note": {"type": "string"}
+  }
+}

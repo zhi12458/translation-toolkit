@@ -5,16 +5,13 @@
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-import sqlite3
 from flask import Flask, request, jsonify, render_template
 import search as s
 
 app = Flask(__name__)
 
 def _connect():
-    con = sqlite3.connect(s.DB)
-    con.execute("PRAGMA journal_mode=WAL")
-    return con
+    return s._connect()
 
 
 def do_search(q, loc, src, limit):

@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "terms": [
+    {
+      "source": "正念",
+      "sense": "对当下身心经验的如实觉知",
+      "preferred": "mindfulness",
+      "allowed": ["mindfulness"],
+      "forbidden": [],
+      "sources": ["DoT定稿"],
+      "rationale": "示例项目采用权威来源中的通行译法。",
+      "status": "selected",
+      "reviewer": "示例维护者"
+    }
+  ]
+}

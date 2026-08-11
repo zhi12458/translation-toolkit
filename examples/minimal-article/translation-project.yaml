@@ -1,0 +1,45 @@
+{
+  "project_id": "minimal-mindfulness",
+  "title": "正念练习",
+  "author": "MPI 示例",
+  "translator": "示例翻译者",
+  "genre": "written_article",
+  "audience": "初次接触正念的一般英语读者",
+  "register": {
+    "voice": "清楚、温和、直接",
+    "formality": "neutral"
+  },
+  "cultural_bridge": {
+    "policy": "none",
+    "notes": "本示例不增加原文之外的解释。"
+  },
+  "scriptures": [],
+  "sanskrit": {
+    "diacritics": true,
+    "first_mention": "english_and_sanskrit",
+    "notes": "本示例没有梵文词。"
+  },
+  "versions": {
+    "toolkit_commit": "07ebbc90c60c",
+    "termbase": "75346a1a151f459f13149776e560b3ffca95cb107391c6875964eb480d5ffc12",
+    "model": "public-fixture",
+    "skills": {
+      "mpi-translation": "repository-snapshot-2026-08-11",
+      "mpi-translation-review": "repository-snapshot-2026-08-11"
+    }
+  },
+  "release": {
+    "level": "public",
+    "independent_review_required": true,
+    "named_approver_required": true,
+    "independent_review": {
+      "completed": true,
+      "reviewer": "示例审校者"
+    },
+    "approval": {
+      "approved": true,
+      "approver": "示例批准者",
+      "note": "公开微型样例已完成独立审校与具名批准。"
+    }
+  }
+}

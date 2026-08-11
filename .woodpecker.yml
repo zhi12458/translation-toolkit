@@ -1,0 +1,15 @@
+matrix:
+  PYTHON_IMAGE:
+    - python:3.11-alpine
+    - python:3.12-alpine
+    - python:3.13-alpine
+
+steps:
+  - name: python-tests
+    image: ${PYTHON_IMAGE}
+    commands:
+      - apk add --no-cache fish
+      - python -m pip install --no-cache-dir 'pytest>=8,<10'
+      - python -m compileall -q scripts terms-database
+      - python -m pytest -q
+      - fish -n scripts/*.fish

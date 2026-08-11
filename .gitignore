@@ -3,3 +3,5 @@ __pypackages__/
 .~lock.*
 bilingual.dj
 commented.dj
+qa-report.json
+.pytest_cache/

@@ -1,0 +1,76 @@
+{
+  "snapshot_date": "2026-08-11",
+  "scope": "translation-toolkit repository plus an anonymized convenience sample of discoverable sibling article directories",
+  "repository": {
+    "baseline_commit": "07ebbc90c60c",
+    "working_tree": "stabilization changes present and not committed",
+    "private_manuscripts_included": false
+  },
+  "term_database": {
+    "path": "terms-database/termlib.sqlite",
+    "sha256": "75346a1a151f459f13149776e560b3ffca95cb107391c6875964eb480d5ffc12",
+    "row_count": 199645,
+    "distinct_nonempty_chinese_terms": 157735,
+    "chinese_terms_with_multiple_nonempty_english_renderings": 16552,
+    "approved_dot_exact_chinese_terms": 892,
+    "definitions": {
+      "multiple_renderings": "Group by trim(zh), exclude blank zh/en, and require COUNT(DISTINCT trim(en)) > 1.",
+      "approved_dot": "Count distinct trim(zh) where source = 'DoT定稿' and zh is non-empty."
+    },
+    "read_only_sql": {
+      "row_count": "SELECT COUNT(*) FROM terms;",
+      "distinct_nonempty_chinese_terms": "SELECT COUNT(DISTINCT trim(zh)) FROM terms WHERE trim(coalesce(zh, '')) <> '';",
+      "multiple_renderings": "SELECT COUNT(*) FROM (SELECT trim(zh) FROM terms WHERE trim(coalesce(zh, '')) <> '' AND trim(coalesce(en, '')) <> '' GROUP BY trim(zh) HAVING COUNT(DISTINCT trim(en)) > 1);",
+      "approved_dot": "SELECT COUNT(DISTINCT trim(zh)) FROM terms WHERE source = 'DoT定稿' AND trim(coalesce(zh, '')) <> '';"
+    }
+  },
+  "convenience_sample": {
+    "project_count": 9,
+    "selection": "All directories discoverable in the adjacent workspace snapshot that contained both source.dj and target.dj; repository examples were excluded.",
+    "baseline": {
+      "terminology_check_skipped": 9,
+      "old_mechanical_suite_exit_zero": 5,
+      "digit_check_failures": 2,
+      "stale_bilingual_failures": 2,
+      "interpretation": "The two digit failures were later diagnosed as false positives. Categories overlap and must not be summed."
+    },
+    "post_stabilization": {
+      "draft_exit_zero": 7,
+      "projects_with_explicit_skips": 9,
+      "blank_alignment_failures": 0,
+      "digit_failures": 0,
+      "digit_warnings": 3,
+      "stale_bilingual_failures": 2,
+      "interpretation": "The three digit warnings are legitimate Chinese-number-to-Arabic-digit renderings that remain visible for human verification; missing governance records remain explicit SKIP in draft mode."
+    },
+    "limitations": [
+      "This is a convenience sample for finding mechanisms, not a random or representative sample of all translations.",
+      "Outcomes overlap at project level.",
+      "No project names, manuscript lines, or semantic quality judgments are stored in this evidence file.",
+      "Mechanical pass rates do not measure Buddhist doctrinal accuracy, faithfulness, fluency, or citation-version correctness."
+    ]
+  },
+  "verification": {
+    "pytest": {
+      "command": "PYTHONDONTWRITEBYTECODE=1 python3 -m pytest -q -p no:cacheprovider",
+      "passed": 89,
+      "skipped": 8,
+      "subtests_passed": 26,
+      "skip_reason": "Fish runtime tests skipped because Fish is not installed locally; static wrapper tests ran and Woodpecker CI installs Fish."
+    },
+    "public_strict_fixture": {
+      "path": "examples/minimal-article",
+      "checks": 14,
+      "pass": 14,
+      "warn": 0,
+      "skip": 0,
+      "fail": 0
+    },
+    "additional_checks": [
+      "Python compileall passed",
+      "all four JSON Schemas parsed",
+      "git diff --check passed",
+      "doctor.py --minimal --json returned ok=true"
+    ]
+  }
+}

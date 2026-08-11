@@ -1,0 +1,100 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://codeberg.org/eastwind/translation-toolkit/raw/branch/main/schemas/translation-project.schema.json",
+  "title": "MPI translation-project.yaml",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["project_id", "title", "author", "translator", "genre", "audience", "register", "cultural_bridge", "sanskrit", "versions", "release"],
+  "properties": {
+    "project_id": {"type": "string", "minLength": 1},
+    "title": {"type": "string", "minLength": 1},
+    "author": {"type": "string", "minLength": 1},
+    "translator": {"type": "string", "minLength": 1},
+    "genre": {
+      "enum": ["oral_talk", "written_article", "book", "guided_meditation", "qa", "scripture", "other"]
+    },
+    "audience": {"type": "string", "minLength": 1},
+    "register": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["voice", "formality"],
+      "properties": {
+        "voice": {"type": "string", "minLength": 1},
+        "formality": {"enum": ["conversational", "neutral", "formal", "liturgical"]}
+      }
+    },
+    "cultural_bridge": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["policy"],
+      "properties": {
+        "policy": {"enum": ["none", "minimal_inline", "first_mention", "footnotes_only"]},
+        "notes": {"type": "string"}
+      }
+    },
+    "scriptures": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["work", "source_version", "target_version"],
+        "properties": {
+          "work": {"type": "string"},
+          "source_version": {"type": "string"},
+          "target_version": {"type": "string"},
+          "citation_policy": {"type": "string"}
+        }
+      }
+    },
+    "sanskrit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["diacritics", "first_mention"],
+      "properties": {
+        "diacritics": {"type": "boolean"},
+        "first_mention": {"enum": ["english_only", "english_and_sanskrit", "sanskrit_and_english"]},
+        "notes": {"type": "string"}
+      }
+    },
+    "versions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["toolkit_commit", "termbase"],
+      "properties": {
+        "toolkit_commit": {"type": "string", "minLength": 7},
+        "termbase": {"type": "string", "minLength": 1},
+        "model": {"type": "string"},
+        "skills": {"type": "object", "additionalProperties": {"type": "string"}}
+      }
+    },
+    "release": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["level", "independent_review_required"],
+      "properties": {
+        "level": {"enum": ["draft", "internal", "public", "sensitive"]},
+        "independent_review_required": {"type": "boolean"},
+        "named_approver_required": {"type": "boolean"},
+        "independent_review": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["completed", "reviewer"],
+          "properties": {
+            "completed": {"type": "boolean"},
+            "reviewer": {"type": "string"}
+          }
+        },
+        "approval": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["approved", "approver"],
+          "properties": {
+            "approved": {"type": "boolean"},
+            "approver": {"type": "string"},
+            "note": {"type": "string"}
+          }
+        }
+      }
+    }
+  }
+}

@@ -462,11 +462,10 @@ discussions of 究竟谛 / ultimate truth.
 | Redundant compound | "sharp and keen faculties" | "sharp faculties" or "keen faculties" |
 | "disorder" as verb | "'nao' is to disorder" | "'nao' is to disturb" |
 
-### Meta-pattern: when the review produces `review-comments.dj`
+### Meta-pattern: when the review produces `review-findings.jsonl`
 
 After a translation-review pass, scan the resulting
-`review-comments.dj` for **recurring patterns** and add them to this file
+`review-findings.jsonl` for **recurring patterns** and add them to this file
 and to `buddhist-terminology.md`. The review of *人生百问* began as a
 single article checklist and became a reusable pattern library; future
 reviews should do the same.
-

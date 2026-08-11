@@ -1,7 +1,4 @@
-#!/usr/bin/env -S uv run --script
-# /// script
-# dependencies = []
-# ///
+#!/usr/bin/env python3
 """Full-text search over MPI term database (SQLite).
 
 Module usage:
@@ -18,14 +15,17 @@ CLI usage:
 import sys
 import os
 import sqlite3
+from pathlib import Path
 
 DB = os.path.join(os.path.dirname(os.path.abspath(__file__)), "termlib.sqlite")
 
 
 def _connect():
-    con = sqlite3.connect(DB)
-    con.execute("PRAGMA journal_mode=WAL")
-    return con
+    # termlib.sqlite is a versioned static asset. Immutable read-only mode
+    # avoids WAL/SHM sidecars and also works when the toolkit is mounted
+    # read-only for translators.
+    uri = f"{Path(DB).resolve().as_uri()}?mode=ro&immutable=1"
+    return sqlite3.connect(uri, uri=True)
 
 
 def _search_rows(con, query, loc=None, src=None, limit=None):
@@ -47,7 +47,29 @@ def _search_rows(con, query, loc=None, src=None, limit=None):
         where += " AND source = ?"
         params.append(src)
 
-    sql = f"SELECT zh, en, loc, source FROM terms WHERE {where}"
+    # Keep result selection deterministic and put the most useful terminology
+    # candidates first.  Exact Chinese matches outrank phrase/example rows;
+    # otherwise a longer Chinese entry is usually the more specific match.
+    # Source authority is the documented MPI priority, and rowid provides a
+    # stable final tie-breaker for duplicate entries.
+    exact_query = query.strip() if query else ""
+    sql = f"""
+        SELECT zh, en, loc, source
+        FROM terms
+        WHERE {where}
+        ORDER BY
+            CASE WHEN ? <> '' AND trim(zh) = ? THEN 0 ELSE 1 END,
+            length(trim(zh)) DESC,
+            CASE source
+                WHEN 'DoT定稿' THEN 0
+                WHEN '内部特色词' THEN 1
+                WHEN '佛教术语' THEN 2
+                WHEN '经论名' THEN 3
+                ELSE 4
+            END,
+            rowid ASC
+    """
+    params.extend([exact_query, exact_query])
     if limit is not None:
         sql += " LIMIT ?"
         params.append(limit)
@@ -62,6 +84,9 @@ def search(query, loc=None, src=None, limit=20):
     loc: str — filter by loc column (LIKE match)
     src: str — filter by source column (exact match)
     limit: int — max results (default 20)
+
+    Results are deterministic: exact Chinese matches first, then longer Chinese
+    entries, documented source authority, and finally insertion rowid.
     """
     con = _connect()
     try:
@@ -89,8 +114,18 @@ def main():
         print("  terms-search src:公案")
         sys.exit(1)
 
-    raw = sys.argv[1]
-    limit = int(sys.argv[2]) if len(sys.argv) > 2 else 20
+    # Preserve the legacy quoted-query + optional-limit interface while also
+    # accepting the documented unquoted filter form:
+    #   terms-search 空性 loc:心经 src:佛教术语 5
+    raw_parts = sys.argv[1:]
+    limit = 20
+    if len(raw_parts) > 1:
+        try:
+            limit = int(raw_parts[-1])
+            raw_parts = raw_parts[:-1]
+        except ValueError:
+            pass
+    raw = " ".join(raw_parts)
 
     loc_filter = None
     src_filter = None

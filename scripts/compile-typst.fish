@@ -1,20 +1,110 @@
 #!/usr/bin/env fish
 # Compile a Typst file to PDF.
-# Usage: compile-typst <path-to-file.typ> [output.pdf]
-#   Output defaults to /tmp/<basename>.pdf
-#   The Typst project root is set to the parent of the file's directory
-#   (so imports like ../lib/... resolve correctly).
+# Usage: compile-typst.fish <path-to-file.typ> [output.pdf]
+#   Output defaults to /tmp/<basename>.pdf.
+#   The Typst project root is the parent of the source file's directory.
 
-set src (realpath $argv[1])
-set src_dir (dirname $src)
-set root (dirname $src_dir)
-
-if set -q argv[2]
-    set out "$argv[2]"
-else
-    set base (basename $src .typ)
-    set out "/tmp/$base.pdf"
+function usage
+    echo "Usage: compile-typst.fish <path-to-file.typ> [output.pdf]" >&2
 end
 
-typst compile --root $root $src $out
-echo $out
+set argc (count $argv)
+if test $argc -lt 1; or test $argc -gt 2
+    usage
+    exit 64
+end
+
+if not type -q typst
+    echo "error: typst is required but was not found on PATH" >&2
+    exit 127
+end
+
+if not test -f "$argv[1]"
+    echo "error: input is not a regular file: $argv[1]" >&2
+    exit 66
+end
+if not test -r "$argv[1]"
+    echo "error: input is not readable: $argv[1]" >&2
+    exit 66
+end
+
+set src (realpath -- "$argv[1]")
+set resolve_status $status
+if test $resolve_status -ne 0
+    exit $resolve_status
+end
+set src_dir (dirname -- "$src")
+set root (dirname -- "$src_dir")
+
+if test $argc -eq 2
+    set requested_out "$argv[2]"
+else
+    set base (basename -- "$src" .typ)
+    set requested_out "/tmp/$base.pdf"
+end
+
+if test -d "$requested_out"
+    echo "error: output path is a directory: $requested_out" >&2
+    exit 73
+end
+set out_parent (dirname -- "$requested_out")
+if not test -d "$out_parent"
+    echo "error: output directory does not exist: $out_parent" >&2
+    exit 73
+end
+if not test -w "$out_parent"
+    echo "error: output directory is not writable: $out_parent" >&2
+    exit 73
+end
+
+set out_dir (realpath -- "$out_parent")
+set resolve_status $status
+if test $resolve_status -ne 0
+    exit $resolve_status
+end
+set out_name (basename -- "$requested_out")
+set out "$out_dir/$out_name"
+
+if test "$src" = "$out"
+    echo "error: input and output paths must differ" >&2
+    exit 64
+end
+
+set -g _mpi_tmp_file ""
+set -g _mpi_tmp_dir ""
+function _mpi_cleanup_compile_typst --on-event fish_exit
+    if set -q _mpi_tmp_file; and test -n "$_mpi_tmp_file"; and test -e "$_mpi_tmp_file"
+        command rm -f -- "$_mpi_tmp_file"
+    end
+    if set -q _mpi_tmp_dir; and test -n "$_mpi_tmp_dir"; and test -d "$_mpi_tmp_dir"
+        command rmdir -- "$_mpi_tmp_dir" 2>/dev/null
+    end
+end
+
+set -g _mpi_tmp_dir (command mktemp -d "$out_dir/.compile-typst.XXXXXX")
+set temp_status $status
+if test $temp_status -ne 0
+    exit $temp_status
+end
+set -g _mpi_tmp_file "$_mpi_tmp_dir/$out_name"
+
+command typst compile --root "$root" "$src" "$_mpi_tmp_file"
+set tool_status $status
+if test $tool_status -ne 0
+    exit $tool_status
+end
+if not test -s "$_mpi_tmp_file"
+    echo "error: typst produced an empty PDF file" >&2
+    exit 65
+end
+
+command mv -f -- "$_mpi_tmp_file" "$out"
+set replace_status $status
+if test $replace_status -ne 0
+    exit $replace_status
+end
+set -g _mpi_tmp_file ""
+command rmdir -- "$_mpi_tmp_dir" 2>/dev/null
+set -g _mpi_tmp_dir ""
+
+echo "$out"

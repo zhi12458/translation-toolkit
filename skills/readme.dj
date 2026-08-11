@@ -4,14 +4,15 @@ These skills live in this directory and are loaded by your agent from this path.
 
 ## Install
 
-Add the absolute path to this directory to your agent's external skill paths.
-For Oh My Pi and compatible agents, this is usually a config file with an
-`external_dirs` list:
+Codex discovers repository skills under `.agents/skills` and user skills under
+`~/.agents/skills`; symlink each skill directory into one of those locations.
 
-```yaml
-skills:
-  external_dirs:
-  - /path/to/mpi/toolkit/skills
+For Oh My Pi, register this directory with the current configuration key:
+
+```sh
+omp config set skills.customDirectories \
+  '["/path/to/mpi/toolkit/skills"]'
+omp config get skills.customDirectories --json
 ```
 
 {% Replace `/path/to/mpi` with the absolute path to your workspace. %}

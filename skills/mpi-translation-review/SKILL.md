@@ -2,7 +2,7 @@
 name: mpi-translation-review
 description: |
   Unified review skill for Chinese-English Buddhist/Dharma translations in djot format.
-  Use in self mode to edit your own target.dj, or in other mode to write review-comments.dj for a peer translator.
+  Use in self mode to edit your own target.dj, or in other mode to write structured review-findings.jsonl for a peer translator.
   Do not use for non-djot formats or for non-Buddhist texts.
 ---
 
@@ -13,14 +13,14 @@ This skill replaces the previous `self-review` and `other-review` skills.
 editorial standards, and terminology checks apply whether you are polishing your
 own translation or reviewing another translator's work. Only the action differs:
 in self mode you edit `target.dj` directly; in other mode you write
-`review-comments.dj` for the translator to apply.
+`review-findings.jsonl` for the translator to resolve.
 
 ## Modes
 
 | Mode | When to use | Output artifact | Interaction style |
 |------|-------------|-----------------|-------------------|
 | **self** | You produced the current `target.dj`. | Edited `target.dj` + regenerated `bilingual.dj`. | Direct, decisive: you own the English. |
-| **other** | Another translator produced the current `target.dj`. | `review-comments.dj` only. | Collaborative: ask before prescribing, 随喜 first, address the translator by name. |
+| **other** | Another translator produced the current `target.dj`. | `review-findings.jsonl` only. | Collaborative: ask before prescribing, 随喜 first, address the translator by name. |
 
 A third mode — **direct edit** — is used when the user explicitly asks you to
 apply your findings to `target.dj` even though it is someone else's translation.
@@ -38,8 +38,8 @@ Switch to self-mode output in that case, but keep a collegial tone.
 3. Run a three-pass review using the detection rules below.
 4. Apply the R1–R14 editorial polish checklist.
 5. Check terminology against the terms DB (see `mpi-terms-search` skill).
-6. Verify that every source paragraph maps to a target paragraph with no missing
-   or truncated content.
+6. Verify that every source line and blank-line position maps to the target with
+   no missing, shifted, or truncated content.
 7. Produce the correct artifact for your mode.
 
 ## Detection rules — three passes
@@ -144,12 +144,13 @@ After the three passes, run these final checks.
 - Record only non-obvious or project-level decisions in
   `translation-findings.dj`.
 - After editing, regenerate `bilingual.dj` with
-  `../../toolkit/scripts/gen-bilingual.py source.dj target.dj > bilingual.dj` and verify
-  line counts match.
+  `../../toolkit/scripts/gen-bilingual.py source.dj target.dj --output bilingual.dj`.
+  The generator must accept both line counts and blank-line positions.
 
 ### Other mode
 
-- Do not edit `target.dj`. Write `review-comments.dj`.
+- Do not edit `target.dj`. Write `review-findings.jsonl` using
+  `../../schemas/review-finding.schema.json`.
 - Address the translator by name if known.
 - Deliberation protocol:
   - Start with what is strong (随喜 / appreciation first).
@@ -157,10 +158,13 @@ After the three passes, run these final checks.
   - Distinguish "must fix" errors (accuracy, missing content, serious
     mistranslation) from "consider" suggestions (style, register, optional
     polish).
-- Include exact source/target snippets and line/paragraph references so the
-  translator can locate every issue quickly.
+- Give every finding a stable `finding_id`, a `paragraph_id`, one severity
+  (`critical/major/minor/discussion`), one category, a concrete suggestion,
+  `status: open`, and a named reviewer. Keep excerpts only as short as needed
+  to locate the issue.
 - When the user asks you to apply the findings, switch to direct-edit mode and
-  treat it as self-mode output.
+  treat it as self-mode output. Update the existing finding to
+  `resolved/rejected/deferred` and add `resolution_note`; never delete history.
 
 ## Output formats
 
@@ -168,41 +172,21 @@ After the three passes, run these final checks.
 
 Make targeted changes. If you change a term, search the whole file for that term
 and update it consistently. After editing, regenerate the bilingual file and
-verify line counts.
+verify both line counts and blank-line positions.
 
-### Other mode: review-comments.dj
+### Other mode: review-findings.jsonl
 
-Structure the file as follows:
+Write exactly one JSON object per physical line. Do not wrap the file in a JSON
+array and do not add Markdown headings. Example:
 
-```dj
-# Review comments for <article>
-
-Translator: <name>
-Reviewer: <model / reviewer name>
-Date: <YYYY-MM-DD>
-
-## Summary
-
-One or two sentences on overall quality and the main issue types.
-
-## Must-fix issues
-
-1. **Accuracy / missing content.** <source> <target> <why it matters>
-2. ...
-
-## Considerations
-
-1. **Fluency / register.** <source> <target> <suggestion>
-2. ...
-
-## Terminology notes
-
-Any DB queries or proposed term changes.
-
-## Closing
-
- appreciative, forward-looking note.
+```json
+{"finding_id":"review-001","paragraph_id":"L42","severity":"major","category":"meaning","message":"The target reverses the source condition.","suggestion":"Restore the conditional relationship.","status":"open","reviewer":"Reviewer name"}
 ```
+
+`critical` and `major` findings block public release until resolved or explicitly
+rejected by an authorized human reviewer. `discussion` records a question and
+does not silently become an approved term decision. A zero-finding file does not
+by itself constitute human approval.
 
 ## References
 
