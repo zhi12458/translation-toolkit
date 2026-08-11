@@ -276,6 +276,10 @@ Read the entire English target aloud. If anything stalls, rephrase it.
 
 When translating guided meditation scripts, exercise guides, or posture instructions
 (rather than Dharma talks), use a lighter workflow. See `references/meditation-translation.md`.
+Before drafting, also read `../mpi-translation-review/references/meditation-practice-translation.md`
+(patterns a human reviewer flagged across a meditation manuscript) so the recurring
+issues — dropped/inconsistent person, over-long sentences, filler, 字对字
+renderings, fixed series terms — are avoided up front rather than caught at review.
 
 ## Other Pitfalls
 
@@ -288,6 +292,7 @@ Create article-specific scripts per `references/proofread-pdf-workflow.md`.
 ## References
 
 - `references/meditation-translation.md` — lighter workflow for meditation/mindfulness content
+- `../mpi-translation-review/references/meditation-practice-translation.md` (cross-skill) — recurring patterns for meditation-practice texts, distilled from a human-reviewed manuscript
 - `references/markdown-to-djot.md` — converting .docx.md to .dj for translation prep
 - `references/bilingual-format.md` — bilingual.dj layout: source/target adjacent, blank separator between pairs
 - `references/diacritics-convention.md` — diacritics rules

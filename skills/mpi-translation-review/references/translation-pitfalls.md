@@ -275,6 +275,37 @@ initial/middle/great scope."
 
 佛教术语 has "Guanshiyin/Guanyin Bodhisattva." Use "Guanyin Bodhisattva."
 
+## Chan verse / scripture quotes — reuse established renderings
+
+When the source quotes a well-known Chan verse or sutra passage, do NOT draft
+a fresh translation. Use the established English rendering from the lineage,
+and check whether the project already published this verse in an earlier book
+of the series — reuse that exact wording.
+
+**Case (信心铭 / *Faith in Mind*, from 初级正念禅修 review):** the source
+quoted "至道无难，唯嫌拣择，但莫憎爱，洞然明白". The draft target mis-quoted
+the verse (anchoring the wrong lines) and the reviewer noted the correct
+rendering ("Without love or hate, one sees things as they truly are.") was
+already used in an earlier translated book in the series. The annotated
+"才有是非，纷然失心" was a mis-annotation of the source; the passage the
+source actually quotes is the four-line verse above.
+
+**Detection:** For any quoted verse/idiom the source sets off (quotation
+marks, 曰/云/云何 structures), identify the source work (e.g. 信心铭, 金刚经,
+六祖坛经) and search prior published translations in the series before
+translating. A famous Chan line almost always has a standard English form.
+
+## AI misinterpretation of Chinese metaphor
+
+LLMs sometimes mistranslate a concrete Chinese metaphor by guessing the wrong
+image. When the English rendering of a metaphor is physically impossible or
+odd ("we climb on again" for a car returning to a highway), the model
+misread the source, not the register. Re-read the source image literally and
+render the actual picture in plain English ("we get back on").
+
+**Rule:** If the English metaphor is hard to visualize or sounds comical, it
+is likely a mistranslation of the source image — check the Chinese.
+
 ## Workflow pitfall
 
 ### Translating before consulting terms DB

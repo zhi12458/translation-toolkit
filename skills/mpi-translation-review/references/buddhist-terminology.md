@@ -35,6 +35,29 @@ Terms encountered in Chinese-English translation of Dharma study materials. Thes
 | 愿心 | mind of vows, bodhicitta aspiration | Plural "vows" in English |
 | 重要感、优越感、主宰欲 | sense of importance, superiority, desire to control | Three ego-driven motivations |
 
+## Meditation-practice terms (from 初级正念禅修 review)
+
+Terms from the *初级正念禅修* review (2026-08-10). These appear in
+meditation-method / breathing / posture texts. See
+`references/meditation-practice-translation.md` for the full review patterns.
+
+| Chinese | English | Notes |
+|---------|---------|-------|
+| 初级正念（禅修） | Primary Mindfulness (Meditation) | NOT "elementary". 初级 → "primary" in this series. |
+| 毗卢七支坐 | seven-point posture of Vairocana | terms DB: "Seven-Point Postures of Vairochana". Use consistently. |
+| 八式动禅 | Eight Mindful Exercises for Lotus Posture | Fixed series term. |
+| 七式呼吸 | Seven Mindful Exercises for Breathing | Fixed series term. |
+| 观呼吸 | Mindful Breathing | As a practice name; not "Mindfulness of Breathing". |
+| 打坐 / 坐禅 | sitting meditation | terms DB `坐禅`. Use uniformly ("seated meditation" OK). |
+| 细（呼吸） | subtle | For 细 breath quality; "fine" reads unnatural to general readers. |
+| 止 | settling the mind on an object | Terse source needs expansion; never bare "stopping". |
+| 证悟 | enlightenment | terms DB. Not "Way". |
+| 本心 / 真心 | true mind | Use consistently within a document (also for 心性 where intended). |
+| 辅助（禅修） | supportive (mindfulness practice) | "supportive" preferred over "auxiliary" (warmer, conversational). |
+| 觉知 | awareness | terms DB. |
+| 观照 | attend to the mind / mindful observation | Contemplative, not passive "observe". |
+| 缘起 | dependent origination | Prefer "follow the principle of dependent origination" collocation. |
+
 ## Structural patterns
 
 - Section numbering: Chinese uses 一、二、三... English should pick one style (Part One/Two, First/Second, I/II) and stick with it.

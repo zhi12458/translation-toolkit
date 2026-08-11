@@ -7,13 +7,26 @@ use a lighter workflow than the full dharma-translation pipeline.
 ## Register
 
 Default to warm, direct instructional voice (Thầy-adjacent):
-- Second-person address ("you")
+- Inclusive first person ("we") for describing the practice and shared
+  experience; second person ("you") for direct step-by-step guidance
 - Concrete images, sensory details
 - Oral rhythm, short sentences
 - Present tense, imperative mood
 
 MB corpus consultation is NOT needed for register — this content type has its own
 well-established English conventions (yoga/meditation instructional voice).
+
+### Person and subject (most-reviewed issue in this genre)
+
+Chinese meditation prose drops subjects; English must not. The human reviewer's
+#1 fix was to supply and keep a **consistent person as subject** — almost
+always "we" for shared experience, "you" for direct guidance — and never to
+drift into abstract third person ("people," "one") or leave a sentence
+subjectless. Every sentence needs a named subject, and the reference chain
+across sentences must stay consistent (don't hop between "we," "the
+practitioner," and an inanimate noun). For the full pattern library from a
+human-reviewed manuscript, read
+`../mpi-translation-review/references/meditation-practice-translation.md`.
 
 ## Terms
 

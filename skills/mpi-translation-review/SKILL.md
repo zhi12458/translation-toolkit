@@ -30,12 +30,17 @@ Switch to self-mode output in that case, but keep a collegial tone.
 
 1. Read `source.dj` and `target.dj` fully before changing anything.  
    (Other mode only: read the translator's note if present, and address them by name.)
-2. Run a three-pass review using the detection rules below.
-3. Apply the R1–R14 editorial polish checklist.
-4. Check terminology against the terms DB (see `mpi-terms-search` skill).
-5. Verify that every source paragraph maps to a target paragraph with no missing
+2. If the text is **meditation-practice content** — a guided meditation script,
+   posture/breathing exercise guide, or meditation-method explanation — load
+   `references/meditation-practice-translation.md` and run its summary checklist
+   as an extra pass. It distills the recurring issues a human reviewer flagged
+   across a whole meditation manuscript.
+3. Run a three-pass review using the detection rules below.
+4. Apply the R1–R14 editorial polish checklist.
+5. Check terminology against the terms DB (see `mpi-terms-search` skill).
+6. Verify that every source paragraph maps to a target paragraph with no missing
    or truncated content.
-6. Produce the correct artifact for your mode.
+7. Produce the correct artifact for your mode.
 
 ## Detection rules — three passes
 
@@ -207,6 +212,10 @@ Any DB queries or proposed term changes.
   for this project's genres.
 - `references/buddhist-terminology.md` — register and convention notes for
   Buddhist/Dharma terms.
+- `references/meditation-practice-translation.md` — recurring review patterns
+  for meditation-practice texts (person/subject consistency, sentence
+  splitting, filler deletion, fixed series terms, Chan-verse quotes), distilled
+  from a human-reviewed manuscript.
 - `../mpi-translation/SKILL.md` — the upstream translation skill that produces the
   `target.dj` this skill reviews.
 - `../mpi-terms-search/SKILL.md` — skill for querying the terms database before and
