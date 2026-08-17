@@ -58,6 +58,7 @@ STRATEGY_C_FILES = (
     "scripts/gen-bilingual.py",
     "scripts/check-translation.py",
     "scripts/dj2docx.py",
+    "scripts/check-docx.py",
     "scripts/gen-subtitles.py",
     "scripts/check-subtitles.py",
     "schemas/term-map.schema.json",

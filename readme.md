@@ -148,6 +148,7 @@ commit them.
 | Check installed tools | `python3 scripts/doctor.py --minimal` or `--strict` |
 | Convert `target.dj` to `.docx` | `./scripts/dj2docx.fish ../translate-files/my-article/target.dj` |
 | Cross-platform English/bilingual DOCX | `python3 ./scripts/dj2docx.py target.dj target.docx --kind target` |
+| Check generated DOCX integrity and text | `python3 ./scripts/check-docx.py target.dj target.docx --output target-docx-qa-report.json` |
 | Generate and check media subtitles | `python3 ./scripts/gen-subtitles.py PROJECT && python3 ./scripts/check-subtitles.py PROJECT --strict --output PROJECT/subtitle-qa-report.json` |
 | Compile a Typst file to PDF | `./scripts/compile-typst.fish ../translate-files/my-article/my-article.typ` |
 | Split a generated bilingual file | `./scripts/split-bilingual.fish ../translate-files/my-article/bilingual.dj` — recovery only; canonical generator layout; atomically replaces same-directory `source.dj` and `target.dj` after validation |

@@ -133,8 +133,9 @@ The enforced order is:
 6. Apply valid findings with Sol, regenerate `bilingual.dj`, and run Pro once
    more. Stop for a human if the second review still has critical/major
    blockers.
-7. Run `check-translation.py --strict`; generate DOCX with `dj2docx.py`; for
-   media, generate and check subtitles with `gen-subtitles.py` and
+7. Run `check-translation.py --strict`; generate DOCX with `dj2docx.py` and
+   verify both English and bilingual DOCX with `check-docx.py`; for media,
+   generate and check subtitles with `gen-subtitles.py` and
    `check-subtitles.py`. For non-media, write a real `not_applicable` subtitle
    report with `check-subtitles.py --not-applicable`.
 
@@ -470,6 +471,8 @@ regenerating the same Python in execute_code each turn.
   Sol's English as the canonical target.
 - `toolkit/scripts/dj2docx.py <djot> <output.docx> --kind target|bilingual` —
   cross-platform atomic DOCX generation.
+- `toolkit/scripts/check-docx.py <djot> <docx> --output <report.json>` — verify
+  DOCX ZIP integrity and Pandoc-normalized text fidelity to the frozen Djot.
 - `toolkit/scripts/gen-subtitles.py <project-dir>` — generate Chinese, English,
   and bilingual SRT/VTT from `source-map.json` and aligned Djot.
 - `toolkit/scripts/check-subtitles.py <project-dir> --strict --output

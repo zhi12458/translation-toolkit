@@ -97,6 +97,19 @@ def test_docx_and_docx_render_wrappers_preserve_old_output_on_pandoc_failure(tmp
     assert docx_output.read_bytes() == b"old docx"
 
 
+def test_check_docx_rejects_invalid_zip_without_writing_report(tmp_path):
+    source = tmp_path / "target.dj"
+    docx = tmp_path / "target.docx"
+    report = tmp_path / "docx-qa-report.json"
+    source.write_text("English\n", encoding="utf-8")
+    docx.write_bytes(b"not a zip")
+
+    completed = run_script("check-docx.py", source, docx, "--output", report)
+
+    assert completed.returncode == 1
+    assert not report.exists()
+
+
 def test_term_map_invokes_locked_search_and_writes_receipts(tmp_path):
     source = tmp_path / "source.dj"
     candidates = tmp_path / "term-candidates.json"
