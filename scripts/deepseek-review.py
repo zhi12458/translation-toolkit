@@ -535,7 +535,10 @@ def build_prompt(
 
 
 def build_request_payload(
-    inputs: ProjectInputs, model: str, batch: ReviewBatch | None = None
+    inputs: ProjectInputs,
+    model: str,
+    batch: ReviewBatch | None = None,
+    reasoning_effort: str = "max",
 ) -> dict:
     system_prompt, user_prompt = build_prompt(inputs, batch)
     return {
@@ -546,7 +549,7 @@ def build_request_payload(
         ],
         "stream": False,
         "thinking": {"type": "enabled"},
-        "reasoning_effort": "high",
+        "reasoning_effort": reasoning_effort,
         "response_format": {"type": "json_object"},
         "max_tokens": DEFAULT_MAX_TOKENS,
     }
@@ -558,8 +561,9 @@ def request_review(
     model: str,
     timeout: float,
     batch: ReviewBatch | None = None,
+    reasoning_effort: str = "max",
 ) -> str:
-    payload = build_request_payload(inputs, model, batch)
+    payload = build_request_payload(inputs, model, batch, reasoning_effort)
     body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
     request = urllib.request.Request(
         API_URL,
@@ -1168,6 +1172,12 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument("--model", default=DEFAULT_MODEL, help="DeepSeek model name")
     parser.add_argument(
+        "--reasoning-effort",
+        choices=("high", "max"),
+        default="max",
+        help="provider reasoning effort (default: max for Strategy C review)",
+    )
+    parser.add_argument(
         "--timeout",
         type=float,
         default=DEFAULT_TIMEOUT_SECONDS,
@@ -1224,7 +1234,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         if args.dry_run:
             # Build the exact payload as an isolation check, but do not print it.
             for batch in batches:
-                build_request_payload(inputs, model, batch)
+                build_request_payload(inputs, model, batch, args.reasoning_effort)
             print(
                 f"Dry run OK: {len(inputs.paragraph_ids)} reviewable aligned lines; "
                 f"{len(batches)} focused batches; round {review_round}; "
@@ -1244,6 +1254,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 model=model,
                 timeout=args.timeout,
                 batch=batch,
+                reasoning_effort=args.reasoning_effort,
             )
             batch_findings, batch_summary = validate_review_content(
                 content,

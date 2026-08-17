@@ -234,7 +234,7 @@ def test_http_request_merges_provenance_and_writes_fresh_certificate(
     payload = json.loads(request.data.decode("utf-8"))
     assert payload["model"] == "deepseek-v4-pro"
     assert payload["thinking"] == {"type": "enabled"}
-    assert payload["reasoning_effort"] == "high"
+    assert payload["reasoning_effort"] == "max"
     assert payload["response_format"] == {"type": "json_object"}
     assert payload["max_tokens"] == 32_768
     serialized_payload = json.dumps(payload, ensure_ascii=False)
