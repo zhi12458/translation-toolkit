@@ -126,7 +126,8 @@ The enforced order is:
    metadata, and term map through `deepseek-source-analysis.py`. It must not
    see or create `target.dj`.
 4. Let the active GPT-5.6-Sol `high` Codex agent write the English. It is the
-   only English wording authority.
+   only English wording authority. Freeze its draft as canonical `target.dj`
+   with `freeze-target.py`; do not let the orchestrator replace that validator.
 5. Generate `bilingual.dj` with `gen-bilingual.py`, then let DeepSeek V4 Pro
    `max` review Chinese and English without seeing the Flash analysis.
 6. Apply valid findings with Sol, regenerate `bilingual.dj`, and run Pro once
@@ -464,6 +465,9 @@ regenerating the same Python in execute_code each turn.
 - `toolkit/scripts/deepseek-source-analysis.py <project-dir>` — serial,
   checkpointed DeepSeek V4 Flash `high` blind analysis over toolkit-frozen
   inputs; never reads `target.dj`.
+- `toolkit/scripts/freeze-target.py <source.dj> <sol-draft.dj> --output
+  <target.dj>` — validate line and blank-line alignment, then atomically freeze
+  Sol's English as the canonical target.
 - `toolkit/scripts/dj2docx.py <djot> <output.docx> --kind target|bilingual` —
   cross-platform atomic DOCX generation.
 - `toolkit/scripts/gen-subtitles.py <project-dir>` — generate Chinese, English,

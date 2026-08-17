@@ -54,6 +54,7 @@ STRATEGY_C_FILES = (
     "scripts/docx2dj.py",
     "scripts/build-term-map.py",
     "scripts/deepseek-source-analysis.py",
+    "scripts/freeze-target.py",
     "scripts/gen-bilingual.py",
     "scripts/check-translation.py",
     "scripts/dj2docx.py",

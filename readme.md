@@ -144,6 +144,7 @@ commit them.
 | Convert `.docx` to `.dj` | `./scripts/docx2dj.fish input.docx output.dj` |
 | Cross-platform source to Djot | `python3 ./scripts/source2dj.py input.txt source.dj` or `python3 ./scripts/docx2dj.py input.docx source.dj` |
 | Build an audited term map | `python3 ./scripts/build-term-map.py source.dj term-candidates.json --output term-map.yaml --receipts term-search-receipts.jsonl` |
+| Freeze Sol's aligned English draft | `python3 ./scripts/freeze-target.py source.dj sol-draft.dj --output target.dj` |
 | Check installed tools | `python3 scripts/doctor.py --minimal` or `--strict` |
 | Convert `target.dj` to `.docx` | `./scripts/dj2docx.fish ../translate-files/my-article/target.dj` |
 | Cross-platform English/bilingual DOCX | `python3 ./scripts/dj2docx.py target.dj target.docx --kind target` |

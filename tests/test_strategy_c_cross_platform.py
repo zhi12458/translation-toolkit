@@ -19,6 +19,33 @@ def run_script(name, *args, env=None):
     )
 
 
+def test_freeze_target_validates_and_writes_atomically(tmp_path):
+    source = tmp_path / "source.dj"
+    draft = tmp_path / "draft.dj"
+    target = tmp_path / "target.dj"
+    source.write_text("标题\n\n正文\n", encoding="utf-8")
+    draft.write_text("Title\n\nBody\n", encoding="utf-8")
+
+    completed = run_script("freeze-target.py", source, draft, "--output", target)
+
+    assert completed.returncode == 0, completed.stderr
+    assert target.read_text(encoding="utf-8") == "Title\n\nBody\n"
+
+
+def test_freeze_target_rejects_alignment_drift_without_overwrite(tmp_path):
+    source = tmp_path / "source.dj"
+    draft = tmp_path / "draft.dj"
+    target = tmp_path / "target.dj"
+    source.write_text("标题\n\n正文\n", encoding="utf-8")
+    draft.write_text("Title\nBody\n\n", encoding="utf-8")
+    target.write_text("KEEP\n", encoding="utf-8")
+
+    completed = run_script("freeze-target.py", source, draft, "--output", target)
+
+    assert completed.returncode == 1
+    assert target.read_text(encoding="utf-8") == "KEEP\n"
+
+
 def test_source2dj_normalizes_utf8_and_line_endings(tmp_path):
     source = tmp_path / "原稿.txt"
     output = tmp_path / "source.dj"
