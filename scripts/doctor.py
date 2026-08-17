@@ -9,6 +9,7 @@ import re
 import shutil
 import subprocess
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Sequence
 
 
@@ -36,6 +37,30 @@ OPTIONAL_TOOLS = (
     ToolSpec("jq", "jq", False),
     ToolSpec("omp", "omp", False),
     ToolSpec("herdr", "herdr", False),
+)
+
+STRATEGY_C_TOOLS = (
+    ToolSpec("python", "python3", True, minimum_version=(3, 11)),
+    ToolSpec("git", "git", True),
+    ToolSpec("pandoc", "pandoc", True),
+)
+
+REPOSITORY = Path(__file__).resolve().parents[1]
+STRATEGY_C_FILES = (
+    "AGENTS.md",
+    "terms-database/search.py",
+    "terms-database/termlib.sqlite",
+    "scripts/source2dj.py",
+    "scripts/docx2dj.py",
+    "scripts/build-term-map.py",
+    "scripts/deepseek-source-analysis.py",
+    "scripts/gen-bilingual.py",
+    "scripts/check-translation.py",
+    "scripts/dj2docx.py",
+    "scripts/gen-subtitles.py",
+    "scripts/check-subtitles.py",
+    "schemas/term-map.schema.json",
+    "schemas/source-map.schema.json",
 )
 
 
@@ -94,17 +119,37 @@ def inspect_tool(spec: ToolSpec) -> dict[str, Any]:
     }
 
 
-def collect_checks(*, minimal: bool = False) -> list[dict[str, Any]]:
-    specs = REQUIRED_TOOLS if minimal else REQUIRED_TOOLS + OPTIONAL_TOOLS
-    return [inspect_tool(spec) for spec in specs]
+def collect_checks(
+    *, minimal: bool = False, strategy_c: bool = False
+) -> list[dict[str, Any]]:
+    specs = STRATEGY_C_TOOLS if strategy_c else REQUIRED_TOOLS if minimal else REQUIRED_TOOLS + OPTIONAL_TOOLS
+    checks = [inspect_tool(spec) for spec in specs]
+    if strategy_c:
+        for relative in STRATEGY_C_FILES:
+            path = REPOSITORY / relative
+            checks.append(
+                {
+                    "name": f"file:{relative}",
+                    "command": None,
+                    "required": True,
+                    "ok": path.is_file() and path.stat().st_size > 0,
+                    "path": str(path.resolve()),
+                    "version": None,
+                    "minimum_version": None,
+                    "error": None if path.is_file() and path.stat().st_size > 0 else "required strategy-C file is missing or empty",
+                }
+            )
+    return checks
 
 
-def build_report(*, strict: bool = False, minimal: bool = False) -> dict[str, Any]:
-    checks = collect_checks(minimal=minimal)
+def build_report(
+    *, strict: bool = False, minimal: bool = False, strategy_c: bool = False
+) -> dict[str, Any]:
+    checks = collect_checks(minimal=minimal, strategy_c=strategy_c)
     required_ok = all(check["ok"] for check in checks if check["required"])
     optional_ok = all(check["ok"] for check in checks if not check["required"])
     ok = required_ok and (optional_ok if strict else True)
-    mode = "minimal" if minimal else "strict" if strict else "default"
+    mode = "strategy-c" if strategy_c else "minimal" if minimal else "strict" if strict else "default"
     return {
         "mode": mode,
         "ok": ok,
@@ -148,6 +193,11 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         help="treat missing optional tools as failures",
     )
     mode.add_argument(
+        "--strategy-c",
+        action="store_true",
+        help="check the cross-platform tools and repository files required by strategy C",
+    )
+    mode.add_argument(
         "--minimal",
         action="store_true",
         help="check only required tools (python, git, sqlite3)",
@@ -157,7 +207,9 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = parse_args(argv)
-    report = build_report(strict=args.strict, minimal=args.minimal)
+    report = build_report(
+        strict=args.strict, minimal=args.minimal, strategy_c=args.strategy_c
+    )
     if args.json:
         print(json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True))
     else:

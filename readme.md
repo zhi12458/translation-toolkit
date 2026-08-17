@@ -142,8 +142,12 @@ commit them.
 | Task | Command |
 |---|---|
 | Convert `.docx` to `.dj` | `./scripts/docx2dj.fish input.docx output.dj` |
+| Cross-platform source to Djot | `python3 ./scripts/source2dj.py input.txt source.dj` or `python3 ./scripts/docx2dj.py input.docx source.dj` |
+| Build an audited term map | `python3 ./scripts/build-term-map.py source.dj term-candidates.json --output term-map.yaml --receipts term-search-receipts.jsonl` |
 | Check installed tools | `python3 scripts/doctor.py --minimal` or `--strict` |
 | Convert `target.dj` to `.docx` | `./scripts/dj2docx.fish ../translate-files/my-article/target.dj` |
+| Cross-platform English/bilingual DOCX | `python3 ./scripts/dj2docx.py target.dj target.docx --kind target` |
+| Generate and check media subtitles | `python3 ./scripts/gen-subtitles.py PROJECT && python3 ./scripts/check-subtitles.py PROJECT --strict --output PROJECT/subtitle-qa-report.json` |
 | Compile a Typst file to PDF | `./scripts/compile-typst.fish ../translate-files/my-article/my-article.typ` |
 | Split a generated bilingual file | `./scripts/split-bilingual.fish ../translate-files/my-article/bilingual.dj` — recovery only; canonical generator layout; atomically replaces same-directory `source.dj` and `target.dj` after validation |
 | Check a draft | `./scripts/check-translation.py ../translate-files/my-article/ --json` — WARN/SKIP are explicit |

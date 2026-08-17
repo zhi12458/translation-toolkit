@@ -12,9 +12,10 @@ CLI usage:
     toolkit/terms-database/search.py 空性 loc:心经 src:公案
 """
 
-import sys
 import os
+import json
 import sqlite3
+import sys
 from pathlib import Path
 
 DB = os.path.join(os.path.dirname(os.path.abspath(__file__)), "termlib.sqlite")
@@ -118,6 +119,10 @@ def main():
     # accepting the documented unquoted filter form:
     #   terms-search 空性 loc:心经 src:佛教术语 5
     raw_parts = sys.argv[1:]
+    json_output = False
+    if "--json" in raw_parts:
+        raw_parts = [part for part in raw_parts if part != "--json"]
+        json_output = True
     limit = 20
     if len(raw_parts) > 1:
         try:
@@ -146,6 +151,10 @@ def main():
         return
 
     results = search(query_str, loc=loc_filter, src=src_filter, limit=limit)
+
+    if json_output:
+        print(json.dumps(results, ensure_ascii=False, sort_keys=True))
+        return
 
     if not results:
         print(f"No results for: {raw}")

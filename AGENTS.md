@@ -103,6 +103,43 @@ require `release.named_approver_required: true` and named human approval.
 
 Translate Chinese source into English. The agent IS the model — no external APIs. This workflow covers the state machine path `idle` → `translating` → `bilingual_ready` → `self_reviewing`.
 
+### Audited Codex strategy C
+
+The distributable Codex strategy-C workflow is a strict specialization of
+Workflow A. At the start of every run, read the parent `mpi-translations/AGENTS.md`,
+this file, and the three MPI translation skills. Refuse to translate unless the
+locked repository origins, Git SHAs, clean-worktree checks, and
+`scripts/doctor.py --strategy-c` receipt all match the installation `READY.json`.
+
+Use only this locked toolkit for source conversion, terminology search and
+`term-map.yaml`, canonical source/target/bilingual management, DOCX rendering,
+subtitle generation, and deterministic QA. The external orchestrator may
+schedule Flash, Sol, and Pro and may record audit receipts, but it must not
+contain fallback implementations of those toolkit responsibilities.
+
+The enforced order is:
+
+1. Run `docx2dj.py` or `source2dj.py` and freeze the resulting `source.dj` hash.
+2. Run `terms-database/search.py` through `build-term-map.py`; stop for every
+   `needs_human` term before English drafting.
+3. Let DeepSeek V4 Flash `high` analyze only the frozen Chinese, project
+   metadata, and term map through `deepseek-source-analysis.py`. It must not
+   see or create `target.dj`.
+4. Let the active GPT-5.6-Sol `high` Codex agent write the English. It is the
+   only English wording authority.
+5. Generate `bilingual.dj` with `gen-bilingual.py`, then let DeepSeek V4 Pro
+   `max` review Chinese and English without seeing the Flash analysis.
+6. Apply valid findings with Sol, regenerate `bilingual.dj`, and run Pro once
+   more. Stop for a human if the second review still has critical/major
+   blockers.
+7. Run `check-translation.py --strict`; generate DOCX with `dj2docx.py`; for
+   media, generate and check subtitles with `gen-subtitles.py` and
+   `check-subtitles.py`. For non-media, write a real `not_applicable` subtitle
+   report with `check-subtitles.py --not-applicable`.
+
+Every call above must pass through the strategy-C audit runner and appear in
+the project `MANIFEST.json`. Missing or stale receipts are release failures.
+
 ### Source context
 
 Before translating, distinguish `source_origin` from `delivery_format`. A talk
@@ -417,10 +454,28 @@ regenerating the same Python in execute_code each turn.
   `gen-bilingual.py` output into source.dj + target.dj without guessing language;
   recovery-only command that replaces same-directory outputs after validation
 - `toolkit/scripts/dj2docx.fish <target.dj> [output.docx]` — pandoc .dj → .docx in `/tmp/`
+- `toolkit/scripts/source2dj.py <txt|md|dj> <source.dj>` — cross-platform,
+  atomic UTF-8 source normalization; Markdown is converted through Pandoc.
+- `toolkit/scripts/docx2dj.py <docx> <source.dj>` — cross-platform atomic DOCX
+  extraction through Pandoc.
+- `toolkit/scripts/build-term-map.py <source.dj> <term-candidates.json>
+  --output <term-map.yaml> --receipts <term-search-receipts.jsonl>` — invoke
+  the locked MPI terminology search and freeze the decisions and receipts.
+- `toolkit/scripts/deepseek-source-analysis.py <project-dir>` — serial,
+  checkpointed DeepSeek V4 Flash `high` blind analysis over toolkit-frozen
+  inputs; never reads `target.dj`.
+- `toolkit/scripts/dj2docx.py <djot> <output.docx> --kind target|bilingual` —
+  cross-platform atomic DOCX generation.
+- `toolkit/scripts/gen-subtitles.py <project-dir>` — generate Chinese, English,
+  and bilingual SRT/VTT from `source-map.json` and aligned Djot.
+- `toolkit/scripts/check-subtitles.py <project-dir> --strict --output
+  <subtitle-qa-report.json>` — deterministic timing, coverage, length, and
+  reading-speed gate; use `--not-applicable` for non-media projects.
 - `toolkit/scripts/proofread-pdf.py <docx> <pdf>` — word-level diff between manuscript and typeset PDF
 - `toolkit/scripts/gen-bilingual.py <source.dj> <target.dj> --output bilingual.dj` — validate fully, then atomically replace the generated file. Stdout mode remains for pipelines but shell redirection can truncate an old file before validation.
 - `toolkit/scripts/check-translation.py <book_dir>` — deterministic translation gate: input/blank alignment, line/paragraph/heading structure, emphasis/comments, CJK/punctuation/bold leakage, digit fidelity, terminology policy, bilingual freshness, and release-governance records. `--strict` exits 1 on FAIL or SKIP.
-- `toolkit/scripts/doctor.py --minimal|--strict [--json]` — read-only dependency self-check.
+- `toolkit/scripts/doctor.py --minimal|--strict|--strategy-c [--json]` —
+  read-only dependency and strategy-C repository self-check.
 - `toolkit/scripts/gen-bilingual-<name>-<hash>.py` — article-specific extraction from DOCX or source/target pairing
 - `toolkit/scripts/compile-typst.fish <typ> [output.pdf]` — compile a Typst file to PDF
 
