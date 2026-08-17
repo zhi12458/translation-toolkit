@@ -137,6 +137,7 @@ def test_term_map_invokes_locked_search_and_writes_receipts(tmp_path):
     assert term_map["terms"][0]["source"] == "空性"
     assert term_map["terms"][0]["status"] == "selected"
     assert receipt["search_script"] == str((ROOT / "terms-database" / "search.py").resolve())
+    assert receipt["arguments"] == ["空性", "20", "--json"]
     assert receipt["exit_code"] == 0
 
 

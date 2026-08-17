@@ -72,6 +72,7 @@ def search_term(term: str, limit: int) -> tuple[list[dict], dict]:
         "source": term,
         "search_script": str(SEARCH_SCRIPT.resolve()),
         "search_script_sha256": sha256_file(SEARCH_SCRIPT),
+        "arguments": command[2:],
         "started_at": started.isoformat().replace("+00:00", "Z"),
         "finished_at": finished.isoformat().replace("+00:00", "Z"),
         "exit_code": completed.returncode,
