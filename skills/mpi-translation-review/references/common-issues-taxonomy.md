@@ -56,7 +56,24 @@ Example:
 > *Issue:* Two different subjects: the government advocates cultural confidence;
 > Xi proposed the six virtues. The target merges both into Xi alone.
 
-#### d. Wrong word choice causing misunderstanding
+#### d. Predicate and semantic-role drift
+
+> 仅仅为了得到谋生的食粮，就有多少生命在忍受痛苦，甚至丧生。
+>
+> How many lives had to suffer or perish merely so that food could be produced?
+>
+> *Issue:* `得到` means obtain or secure, not produce. Its patient/theme is
+> `谋生的食粮`, but the obtainer is omitted and cannot safely be filled as a
+> definite person or equated with `多少生命`. `多少生命` is explicitly the
+> experiencer of `忍受痛苦` and the carried-forward subject of `丧生`.
+> `为了` marks a purpose/cost relation and `甚至` progression. The source does
+> not license `had to`, `could`, or a definite past-time frame.
+>
+> *Review rule:* compare predicates, participants, and information status, not
+> just grammatical subjects. Preserve an omitted or ambiguous role as such;
+> do not invent a participant to make the English clause easier to complete.
+
+#### e. Wrong word choice causing misunderstanding
 
 > 提供一些通俗易懂的法宝
 >
@@ -96,6 +113,26 @@ Adding parentheticals or expansions not in the source.
 Standard: fluent sentences, graceful expression, matching target reader habits.
 "Conform to what foreign readers find readable."
 "Concise, clear, accurate, not draggy, meaning clear."
+
+### 0. Title and Heading Fidelity
+
+Titles are not decorative summaries. Identify the head noun/action, modifier
+scope, and any relation expressed by punctuation or phrases such as 迈向、关于、
+根本、基础、关键. Translate a parallel heading series in parallel English and
+keep repeated TOC/body renderings identical. Prefer concise English, but do not
+drop the distinction that makes one heading different from another. Conversely,
+do not expand a short Chinese title with generic scholarly scaffolding such as
+“an exploration of” or “progress toward” unless that relation is genuinely
+needed to preserve the source.
+
+Use a two-part test:
+
+1. Can the English be paraphrased back into the same plain-Chinese proposition?
+2. Can any English word be removed without changing that proposition or the
+   title's register?
+
+Failure of the first test is an accuracy issue; failure of the second is a
+concision issue.
 
 ### 1. Redundancy & Wordiness
 
@@ -165,6 +202,11 @@ When reviewing, run through:
 - [ ] Any over-literal renderings that don't work in English? (idioms, set phrases)
 - [ ] Any over-free renderings that lose specificity? (concrete examples → abstract)
 - [ ] Subject confusion? (two actors merged into one)
+- [ ] Predicate or semantic-role drift? (obtain → produce; experiencer → agent)
+- [ ] Omitted/ambiguous participant silently made definite?
+- [ ] Clause relation or scope changed? (purpose/cost, cause, progression,
+      condition, negation, modality, quantity, degree)
+- [ ] Unsupported tense or modal added? (`had to`, `could`, `must`, `should`)
 - [ ] Buddhist terminology checked against terms DB?
 - [ ] Sentences too long to read in one breath? (split at natural breaks)
 - [ ] Passive voice clustering? (3+ in a paragraph)

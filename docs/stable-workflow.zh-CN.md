@@ -111,12 +111,14 @@ cd ../translate-files/my-article
   original.docx source.dj
 ```
 
-先填写四类项目记录：
+先填写六类项目记录：
 
-1. `translation-project.yaml`：作者/译者、体裁、受众、语域、文化桥接政策、经文版本、工具版本和发布批准。
+1. `translation-project.yaml`：作者/译者、来源、交付形态、受众、语域、外部审义政策、文化桥接、经文版本、工具版本和发布批准。
 2. `term-map.yaml`：每个中文词冻结一个本项目义项，并记录正式/允许/禁用译法、来源和人工确认状态。
-3. `review-findings.jsonl`：独立审校问题、严重度和处理状态。
-4. `qa-report.json`：机械门禁的 PASS/WARN/SKIP/FAIL 结果。
+3. `source-analysis.json`：不看英文初稿的中文源义结构、歧义和不得擅补约束。
+4. `review-findings.jsonl`：独立审校问题、严重度、处理状态和可选模型溯源。
+5. `semantic-review.json`：最终复核轮次及 source/target/findings 哈希证书。
+6. `qa-report.json`：机械门禁的 PASS/WARN/SKIP/FAIL 结果。
 
 字段定义见 `schemas/`，可复制 `examples/minimal-article/` 开始。为避免新增 YAML
 依赖，门禁读取的 YAML 文件采用 JSON 语法书写的 YAML 1.2 子集；示例可直接复制。历史
@@ -130,8 +132,28 @@ cd ../translate-files/my-article
   '空性 src:DoT定稿' 10
 ```
 
-首译前把 `translation-project.yaml`、`source.dj` 和冻结术语提供给 Agent。译文必须写到
-`target.dj`，并保持每行空白位置与 `source.dj` 对齐。
+先区分 `source_origin` 和 `delivery_format`。开示来源若整理为文章或书籍，英文仍采用
+出版书面语，不自动保留聊天腔；只有逐字稿、字幕、问答对话或音频脚本使用明显口语。
+具体字段、凭据和四阶段隔离流程见
+[Kimi K3 源义分析与 DeepSeek V4 Pro 独立复核](semantic-review-workflow.zh-CN.md)。
+
+在项目允许外部审义时，先生成盲态源义分析：
+
+```sh
+/Users/jingzhi/puti/translation-toolkit/scripts/select-kimi-focus.py . --format args
+# 仅把输出的疑难段落 ID 传给 K3，例如：
+/Users/jingzhi/puti/translation-toolkit/scripts/kimi-source-analysis.py . \
+  --paragraph-id L57 --timeout 600 --retries 1
+```
+
+日常流程先由内部中文审义角色完整覆盖全文；K3 只升级分析 `needs_human`、竞争解释、
+歧义角色/关系/作用域/指代，或人工点名的复杂段落。聚焦结果写入独立文件，不能替代
+严格门禁所需的全文 `source-analysis.json`。全文 K3 仅用于模型金标测试，或没有合格
+内部全文审义角色的例外项目。
+
+首译时把 `translation-project.yaml`、`source.dj`、冻结术语和新鲜的
+`source-analysis.json` 提供给英文成文 Agent。译文必须写到 `target.dj`，并保持每行
+空白位置与 `source.dj` 对齐。外部模型不得生成最终英文。
 
 生成双语稿：
 
@@ -144,13 +166,27 @@ cd ../translate-files/my-article
 
 ## 3. 审校与发布
 
-先自审，再由独立会话审校。公开发布、经文引用密集或义理敏感内容必须满足：
+先自审，再做不读取 K3 结果的独立中英准确性复核：
+
+```sh
+/Users/jingzhi/puti/translation-toolkit/scripts/deepseek-review.py .
+```
+
+英文 Agent 应用已确认的意义约束并完成书面化后，必须再次运行同一命令。连续两个 blocking 复核周期后仍有
+blocking finding 时转人工裁决，不再自动循环。公开发布、经文引用密集或义理敏感
+内容必须满足：
 
 - `term-map` 已冻结且没有 `needs_human` 项；
 - 冻结术语覆盖率不低于 99%；
 - `review-findings.jsonl` 没有未解决的 `critical` 或 `major`；
+- `semantic-review.json` 是书面化后的复核，source、target、findings 哈希均为最新，
+  `review_round >= 2`、`status: clear`、`blocking_findings: 0`；
 - 严格机械门禁零 FAIL、零 SKIP；
 - 具名人工批准者明确批准。
+
+`external_semantic_review: deny` 或 `release.level: sensitive` 时不得调用外部接口，改用
+两个独立内部角色并在产物中记录 `provider: internal`。曾在聊天或日志中暴露的测试 key
+必须在处理非公开稿件前撤销并轮换。
 
 运行 strict 前，把 `release.level` 设为 `public` 或 `sensitive`，并如实填写独立
 审校者和批准者。不得为了让门禁通过而虚构签名。

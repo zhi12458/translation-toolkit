@@ -165,10 +165,25 @@ about the system.
 are looked upon with hope." Wrong subject — source is 佛教, not 佛教徒. Right:
 "Buddhism is regarded with hope by the broader society."
 
-**Detection**: For each translated sentence, find the *grammatical subject*
-in the English and check it matches the *grammatical subject* in the Chinese.
-If the English subject is a concrete agent and the Chinese is an abstract
-system noun, it's a subject-shift calque.
+**Detection**: Do not require the two languages to have the same grammatical
+subject; idiomatic English may legitimately change voice or reconstruct a
+topic-comment clause. Instead, identify the source predicate, all participants
+and their semantic roles, and whether each participant is explicit, inferred,
+or ambiguous. Then check that the English preserves those roles and information
+status. If an English concrete agent replaces a Chinese abstract/system
+participant, or if an omitted participant becomes a definite agent without
+contextual support, it is a role-shift error. A grammatical-subject change is a
+control case, not an error by itself.
+
+Permanent regression case:
+
+> 仅仅为了得到谋生的食粮，就有多少生命在忍受痛苦，甚至丧生。
+
+Here `得到` is obtain/secure, not produce. `谋生的食粮` is its explicit
+patient/theme, while the obtainer is omitted and remains ambiguous unless wider
+context resolves it. `多少生命` experiences suffering and is the
+carried-forward subject of perishing. Do not add `had to`, `could`, or a
+definite past merely to make an English sentence cohere.
 
 ## Factual inconsistencies across paired descriptions
 
@@ -451,6 +466,13 @@ discussions of 究竟谛 / ultimate truth.
 | "I deeply know that..." | "I know full well that..." |
 | "For yourself, you must..." | "First, for yourself..." / "Personally, you must..." |
 | "I believe that the external conditions we attract will also change." | "the conditions we draw to ourselves will also change" |
+
+This exception belongs to a deliverable that preserves Q&A dialogue. Do not
+generalize it to every text whose source was spoken. When a Dharma talk is
+compiled as a publication article or book, use polished written prose: retain
+first person, questions, direct address, plain images, and warmth, but normally
+avoid non-quoted contractions, slang, chat fillers, and casual fragments.
+Written here means composed and restrained, not academic or impersonal.
 
 ### Parallelism and grammar fixes
 

@@ -1,0 +1,124 @@
+{
+  "schema_version": 1,
+  "project": {
+    "project_id": "minimal-mindfulness",
+    "title": "正念练习",
+    "source_origin": "written_text",
+    "delivery_format": "publication_article",
+    "external_semantic_review": "allow"
+  },
+  "source_sha256": "1773def231efe0ccf410a5d666ed49edea16ebce7388139752510bdc425cf480",
+  "project_sha256": "873c7cf784518c61dec479840ca85d6ef067c16982b1a79c2264f6164c37d9ca",
+  "term_map_sha256": "fafaf50272832a2b10478214a47f3f00ff8e2302353e847a0580b52a101caa1f",
+  "provider": "internal",
+  "model": "fixture-human-analysis",
+  "configuration": {
+    "base_url": "internal",
+    "reasoning_effort": "high",
+    "response_format": "json_schema",
+    "strict": true,
+    "serial": true,
+    "batch_size": 2,
+    "request_count": 1,
+    "timeout_seconds": 1,
+    "max_completion_tokens": null,
+    "rate_limit_tier": null,
+    "rate_limit_concurrency": null,
+    "rate_limit_rpm": null,
+    "rate_limit_tpm": null
+  },
+  "generated_at": "2026-08-12T00:00:00Z",
+  "paragraphs": [
+    {
+      "paragraph_id": "L1",
+      "predicates": [],
+      "relations": [],
+      "operators": [],
+      "references_and_ellipsis": [],
+      "competing_interpretations": [],
+      "must_preserve": ["标题是正念练习"],
+      "must_not_invent": ["不得把标题扩写成原文没有的修行步骤"],
+      "status": "clear"
+    },
+    {
+      "paragraph_id": "L3",
+      "predicates": [
+        {
+          "predicate": "帮助",
+          "canonical_meaning": "有助于",
+          "evidence": "帮助",
+          "participants": [
+            {
+              "role": "causer",
+              "participant": "正念",
+              "evidence": "正念",
+              "evidence_status": "explicit",
+              "notes": "正念是产生帮助作用的因素。"
+            },
+            {
+              "role": "beneficiary",
+              "participant": "我们",
+              "evidence": "我们",
+              "evidence_status": "explicit",
+              "notes": "我们是获得帮助者。"
+            }
+          ]
+        },
+        {
+          "predicate": "观察",
+          "canonical_meaning": "如实观照",
+          "evidence": "观察",
+          "participants": [
+            {
+              "role": "agent",
+              "participant": "我们",
+              "evidence": "我们",
+              "evidence_status": "explicit",
+              "notes": "我们执行观察。"
+            },
+            {
+              "role": "patient",
+              "participant": "身心",
+              "evidence": "身心",
+              "evidence_status": "explicit",
+              "notes": "身心是观察对象。"
+            }
+          ]
+        }
+      ],
+      "relations": [
+        {
+          "type": "other",
+          "source_clause": "正念",
+          "target_clause": "我们如实观察身心",
+          "evidence": "帮助",
+          "evidence_status": "explicit",
+          "notes": "帮助连接促成因素与受帮助完成的行为。"
+        }
+      ],
+      "operators": [
+        {
+          "kind": "other",
+          "marker": "如实",
+          "scope": "观察身心",
+          "interpretation": "按照实际状态观察，不加歪曲",
+          "evidence_status": "explicit",
+          "notes": "必须保留观察方式。"
+        }
+      ],
+      "references_and_ellipsis": [],
+      "competing_interpretations": [],
+      "must_preserve": [
+        "正念是帮助因素",
+        "我们是观察者",
+        "身心是观察对象",
+        "如实限定观察方式"
+      ],
+      "must_not_invent": [
+        "不得增补义务或建议情态",
+        "不得限定为过去发生的事件"
+      ],
+      "status": "clear"
+    }
+  ]
+}

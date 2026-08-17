@@ -28,14 +28,19 @@ Switch to self-mode output in that case, but keep a collegial tone.
 
 ## Core workflow (both modes)
 
-1. Read `source.dj` and `target.dj` fully before changing anything.  
+1. Read `translation-project.yaml` first, especially `source_origin`,
+   `delivery_format`, and `register`. Then read `source.dj` fully and reconstruct
+   its propositions before using `target.dj` as a cue. Finally read
+   `target.dj` fully before changing anything.
    (Other mode only: read the translator's note if present, and address them by name.)
 2. If the text is **meditation-practice content** — a guided meditation script,
    posture/breathing exercise guide, or meditation-method explanation — load
    `references/meditation-practice-translation.md` and run its summary checklist
    as an extra pass. It distills the recurring issues a human reviewer flagged
    across a whole meditation manuscript.
-3. Run a three-pass review using the detection rules below.
+3. Run a three-pass review using the detection rules below. Review the main
+   title, TOC, and section headings explicitly; do not treat structural parity
+   or title capitalization as evidence that their meaning is correct.
 4. Apply the R1–R14 editorial polish checklist.
 5. Check terminology against the terms DB (see `mpi-terms-search` skill).
 6. Verify that every source line and blank-line position maps to the target with
@@ -50,6 +55,22 @@ issue with line/paragraph references.
 
 ### Pass 1: Accuracy and completeness
 
+Before comparing wording, build a compact source-meaning ledger for every
+substantive clause:
+
+- predicate and action type;
+- participants and semantic roles (agent, experiencer, patient/theme,
+  recipient, beneficiary, instrument, and so on);
+- whether each participant is explicit, a contextual inference, or ambiguous;
+- purpose, cause, condition, result, contrast, progression, and cost relations;
+- scope of tense/aspect, modality, negation, quantity, and degree;
+- reference chains, omitted subjects, and credible competing interpretations.
+
+Use `null` or an explicit ambiguity note when the source does not identify a
+participant. Do not fill a slot merely because English grammar prefers a
+subject. An English grammatical-subject or voice change is allowed when it
+preserves these roles and does not turn an inference into an asserted fact.
+
 - **A1 Missing content.** Check for mid-paragraph truncation, skipped lines, or
   entire paragraphs missing. Compare source and target line counts and paragraph
   boundaries.
@@ -62,8 +83,16 @@ issue with line/paragraph references.
 - **A4 Unnecessary addition.** English content not present in the source that
   was added for fluency but changes the meaning. Common: adding "we should,"
   "we must," "it is important to" where the source is descriptive.
-- **A5 Number / time / person mismatch.** Chinese often omits plurality, tense,
-  and subjects. Ensure English reflects the intended scope and subject.
+- **A5 Role / scope / time mismatch.** Chinese often omits participants and
+  leaves number or time implicit. Check semantic roles, coreference, quantity,
+  tense/aspect, modality, negation, and their scope. Flag invented `must`,
+  `have to`, `could`, `should`, or a definite past event when unsupported.
+- **A6 Title / heading mistranslation.** For every main title, TOC entry, and
+  body heading, identify the semantic head, modifiers, purpose/path relation,
+  and contrasts within a parallel series. Check the proposed English against a
+  plain-Chinese paraphrase and the term map. A fluent or impressive title is
+  still wrong if it shifts the head, drops a distinction, or adds a theme not
+  present in the source. Repeated TOC/body titles must use the same English.
 
 ### Pass 2: Fluency and naturalness
 
@@ -71,15 +100,27 @@ issue with line/paragraph references.
   literally: "as for X ...", "only then can ...", "more ultimate,"
   "choice difficulty," "keen on" (as in "keen on greed"), etc. See
   `references/translation-pitfalls.md` for a pattern table.
-- **F2 Register drift.** The English is too formal, too casual, too academic,
-  or too sermonizing relative to the source. Match the source's register.
+- **F2 Register drift.** Judge the declared `delivery_format`, not source origin
+  alone. A publication article or book compiled from a talk uses polished,
+  restrained written Buddhist prose without chatty contractions, slang, or
+  casual fragments outside quotations. A transcript, subtitle, Q&A dialogue,
+  or audio script may retain conversational features. Written does not mean
+  academic, nominalized, impersonal, or sermonizing.
 - **F3 Broken collocation.** English words that do not normally appear together
   (e.g., "arise greed," "do delusion"). Fix to the usual collocation
   ("give rise to greed," "overcome delusion").
 - **F4 Pronoun / reference chain error.** Missing subject, ambiguous "it" or
   "this," or inconsistent names/pronouns across sentences.
-- **F5 Sentence rhythm.** Overly long, convoluted, or monotonous sentences. For
-  oral talks, respect breath units and emphasis.
+- **F5 Sentence rhythm.** Flag convoluted or monotonous sentences. Spoken
+  deliverables respect breath units and emphasis; publication prose is judged
+  for cadence, controlled subordination, and transparent logic.
+- **F6 Concision and accessibility.** Flag wording that makes a correct meaning
+  harder to grasp: duplicated framing, abstract carrier phrases, stacked
+  qualifications, paired near-synonyms, and unnecessarily long title formulas.
+  Prefer plain concrete verbs and the shortest sentence that preserves every
+  role, relation, scope marker, qualification, and element of the teacher's
+  voice. “Formal” and “written” do not mean longer, more academic, or more
+  nominalized.
 
 ### Pass 3: Dharma and cultural fitness
 
@@ -90,13 +131,15 @@ issue with line/paragraph references.
 - **D2 Cultural anachronism.** Modern concepts projected onto classical material.
   Example: translating 般若 as "wisdom" in a scholarly context may flatten the
   term; in a popular talk it may be exactly right.
-- **D3 Tone AND voice (语气) of the teacher.** For oral talks, preserve the
-  speaker's warmth, rhetorical questions, and direct address. Beyond register,
+- **D3 Tone AND voice (语气) of the teacher.** Preserve the speaker's warmth,
+  rhetorical questions, and direct address even when an oral talk is edited
+  into publication prose. Beyond register,
   check the 语气 markers in `../mpi-translation/SKILL.md` → "Speaker's Voice
   (语气)": rhetorical questions kept as questions, first-person teacher asides
   ("我经常说") kept in first person, reasoning connectives (可见, 所以说)
   preserved, inclusive we/you address, homely analogies left concrete, gentle
-  rather than scolding admonition. Do not flatten into essay prose.
+  rather than scolding admonition. Publication polish may regularize syntax,
+  but must not flatten the teacher into impersonal essay prose.
 - **D4 Implicit meaning / implicature.** What the source implies but does not say
   (e.g., irony, conventional politeness, Gricean maxims). Ensure the implication
   survives or is compensated.
@@ -123,16 +166,22 @@ After the three passes, run these final checks.
    nominalizations.
 9. **R9 Parallelism.** Lists, comparisons, and repeated structures should be
    grammatically parallel.
-10. **R10 Redundancy.** Remove unnecessary repetition or filler introduced during
-    drafting.
+10. **R10 Redundancy and compression.** Remove unnecessary repetition, filler,
+    support-verb constructions, and meaning-free framing introduced during
+    drafting. Then compare with the source again so compression does not erase
+    qualification, logic, or emphasis.
 11. **R11 Word choice.** Precision vs. overuse of generic words ("thing," "aspect,"
     "level," "situation"). Replace with concrete terms.
 12. **R12 Sentence openings.** Vary sentence beginnings; avoid a string of
     "The..." or "It..." or "This..." starts.
 13. **R13 Flow / transitions.** Logical connections between sentences and
     paragraphs are clear.
-14. **R14 Final read aloud.** Read the target text as if it were being delivered
-    to the intended audience. Fix anything that trips the tongue or the ear.
+14. **R14 Delivery and title proof.** Read spoken deliverables aloud. Proof publication
+    articles and books as written prose, checking cadence and logical control
+    without introducing a chatty voice. Read the main title and all headings as
+    a separate sequence: they should be accurate, immediately understandable,
+    concise, parallel where the source is parallel, and identical between TOC
+    and body.
 
 ## Mode-specific instructions
 

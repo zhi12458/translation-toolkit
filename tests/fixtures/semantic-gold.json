@@ -1,0 +1,203 @@
+{
+  "version": 1,
+  "description": "Public, human-annotated regression cases for blind Chinese source analysis and independent bilingual accuracy review.",
+  "hard_gates": {
+    "source_analysis": {
+      "ambiguity_preservation_rate": 1.0,
+      "schema_valid_rate": 1.0,
+      "max_timeout_rate": 0.0
+    },
+    "bilingual_review": {
+      "blocking_recall": 1.0,
+      "max_control_false_positive_rate": 0.0,
+      "schema_valid_rate": 1.0,
+      "max_timeout_rate": 0.0
+    }
+  },
+  "cases": [
+    {
+      "case_id": "food-obtainer-ambiguous-source",
+      "track": "source_analysis",
+      "source_context": [
+        "仅仅为了得到谋生的食粮，就有多少生命在忍受痛苦，甚至丧生。"
+      ],
+      "source": "仅仅为了得到谋生的食粮，就有多少生命在忍受痛苦，甚至丧生。",
+      "gold": {
+        "predicates": ["得到", "忍受", "丧生"],
+        "roles": [
+          {"predicate": "得到", "role": "theme", "participant": "谋生的食粮", "evidence_status": "explicit"},
+          {"predicate": "得到", "role": "agent", "participant": null, "evidence_status": "ambiguous"},
+          {"predicate": "忍受", "role": "experiencer", "participant": "多少生命", "evidence_status": "explicit"},
+          {"predicate": "丧生", "role": "patient", "participant": "多少生命", "evidence_status": "contextual_inference"}
+        ],
+        "relations": ["purpose", "cost", "progression"],
+        "scopes": [
+          {"kind": "quantity", "marker": "多少", "scope": "生命"},
+          {"kind": "degree", "marker": "仅仅", "scope": "为了得到谋生的食粮"},
+          {"kind": "degree", "marker": "甚至", "scope": "丧生"}
+        ],
+        "ambiguities": ["得到.agent"],
+        "must_not_invent": ["had_to", "could", "definite_past", "得到.agent=人们", "得到.agent=多少生命"]
+      }
+    },
+    {
+      "case_id": "condition-negation-source",
+      "track": "source_analysis",
+      "source_context": [
+        "如果不能如实观察念头，就不要急于判断它是善是恶。"
+      ],
+      "source": "如果不能如实观察念头，就不要急于判断它是善是恶。",
+      "gold": {
+        "predicates": ["观察", "判断"],
+        "roles": [
+          {"predicate": "观察", "role": "agent", "participant": null, "evidence_status": "ambiguous"},
+          {"predicate": "判断", "role": "agent", "participant": null, "evidence_status": "ambiguous"},
+          {"predicate": "判断", "role": "theme", "participant": null, "evidence_status": "ambiguous"}
+        ],
+        "relations": ["condition"],
+        "scopes": [
+          {"kind": "negation", "marker": "不能", "scope": "如实观察念头"},
+          {"kind": "negation", "marker": "不要", "scope": "急于判断它是善是恶"}
+        ],
+        "ambiguities": ["观察.agent", "判断.agent", "判断.theme"],
+        "must_not_invent": ["must", "definite_past"]
+      }
+    },
+    {
+      "case_id": "cause-and-result-source",
+      "track": "source_analysis",
+      "source_context": [
+        "因为执著不断增长，内心便越来越不安。"
+      ],
+      "source": "因为执著不断增长，内心便越来越不安。",
+      "gold": {
+        "predicates": ["增长", "不安"],
+        "roles": [],
+        "relations": ["cause", "result"],
+        "scopes": [
+          {"kind": "degree", "marker": "不断", "scope": "增长"},
+          {"kind": "degree", "marker": "越来越", "scope": "不安"}
+        ],
+        "ambiguities": [],
+        "must_not_invent": ["must", "should", "could", "definite_past"]
+      }
+    },
+    {
+      "case_id": "food-produced-review",
+      "track": "bilingual_review",
+      "source_context": [
+        "仅仅为了得到谋生的食粮，就有多少生命在忍受痛苦，甚至丧生。"
+      ],
+      "source": "仅仅为了得到谋生的食粮，就有多少生命在忍受痛苦，甚至丧生。",
+      "target": "How many lives had to suffer or perish merely so that food could be produced?",
+      "gold": {
+        "blocking_codes": ["predicate_drift", "unsupported_modality", "unsupported_tense"],
+        "control": false
+      }
+    },
+    {
+      "case_id": "omitted-agent-role-review",
+      "track": "bilingual_review",
+      "source_context": ["寺院门前种了两棵菩提树。"],
+      "source": "寺院门前种了两棵菩提树。",
+      "target": "The monks planted two bodhi trees in front of the monastery.",
+      "gold": {
+        "blocking_codes": ["role_drift", "addition"],
+        "control": false
+      }
+    },
+    {
+      "case_id": "purpose-cause-review",
+      "track": "bilingual_review",
+      "source_context": ["为了减少执著，我们练习布施。"],
+      "source": "为了减少执著，我们练习布施。",
+      "target": "Because attachment has diminished, we practice generosity.",
+      "gold": {
+        "blocking_codes": ["logical_relation", "unsupported_tense"],
+        "control": false
+      }
+    },
+    {
+      "case_id": "generic-teaching-past-review",
+      "track": "bilingual_review",
+      "source_context": ["贪著会带来痛苦。"],
+      "source": "贪著会带来痛苦。",
+      "target": "Attachment brought suffering.",
+      "gold": {
+        "blocking_codes": ["unsupported_tense"],
+        "control": false
+      }
+    },
+    {
+      "case_id": "unsupported-modals-review",
+      "track": "bilingual_review",
+      "source_context": ["保持觉察，才能看清执著带来的影响。"],
+      "source": "保持觉察，才能看清执著带来的影响。",
+      "target": "We must remain aware, and we should then be able to see what attachment could cause.",
+      "gold": {
+        "blocking_codes": ["unsupported_modality"],
+        "control": false
+      }
+    },
+    {
+      "case_id": "negation-scope-review",
+      "track": "bilingual_review",
+      "source_context": ["并非所有修行人都必须离群索居。"],
+      "source": "并非所有修行人都必须离群索居。",
+      "target": "All practitioners must not live in seclusion.",
+      "gold": {
+        "blocking_codes": ["negation_scope"],
+        "control": false
+      }
+    },
+    {
+      "case_id": "active-passive-control",
+      "track": "bilingual_review",
+      "source_context": ["社会大众对佛教寄予厚望。"],
+      "source": "社会大众对佛教寄予厚望。",
+      "target": "Great hopes are placed on Buddhism by the wider public.",
+      "gold": {
+        "blocking_codes": [],
+        "control": true
+      }
+    },
+    {
+      "case_id": "buddhist-term-coreference-review",
+      "track": "bilingual_review",
+      "source_context": [
+        "空性不是虚无。它揭示一切法依缘而起。",
+        "若把它理解为一无所有，就偏离了中道。"
+      ],
+      "source": "空性不是虚无。它揭示一切法依缘而起。若把它理解为一无所有，就偏离了中道。",
+      "target": "Emptiness is nothingness. Phenomena arise through conditions. If we understand them as the absence of everything, we depart from the Middle Way.",
+      "gold": {
+        "blocking_codes": ["terminology", "coreference_meaning"],
+        "control": false
+      }
+    },
+    {
+      "case_id": "publication-register-review",
+      "track": "bilingual_review",
+      "source_context": ["我经常说，真正的自由不是想做什么就做什么，而是不被烦恼左右。"],
+      "source": "我经常说，真正的自由不是想做什么就做什么，而是不被烦恼左右。",
+      "target": "I always say, real freedom isn't just doing whatever you wanna do—it's not letting your afflictions boss you around.",
+      "metadata": {"source_origin": "oral_talk", "delivery_format": "publication_book", "formality": "formal"},
+      "gold": {
+        "blocking_codes": ["publication_register"],
+        "control": false
+      }
+    },
+    {
+      "case_id": "transcript-register-control",
+      "track": "bilingual_review",
+      "source_context": ["我想，这个问题我们可以慢慢谈。"],
+      "source": "我想，这个问题我们可以慢慢谈。",
+      "target": "I think we can take our time with this question.",
+      "metadata": {"source_origin": "oral_talk", "delivery_format": "transcript", "formality": "conversational"},
+      "gold": {
+        "blocking_codes": [],
+        "control": true
+      }
+    }
+  ]
+}

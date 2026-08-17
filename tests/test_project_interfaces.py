@@ -193,6 +193,9 @@ class ProjectInterfaceTests(unittest.TestCase):
         for path, value in (
             (("project_id",), ""),
             (("genre",), "invalid"),
+            (("source_origin",), "podcast-ish"),
+            (("delivery_format",), "website-ish"),
+            (("external_semantic_review",), "sometimes"),
             (("versions", "toolkit_commit"), "x"),
             (("register", "formality"), "casual-ish"),
         ):
@@ -210,6 +213,43 @@ class ProjectInterfaceTests(unittest.TestCase):
             with self.subTest(document=document):
                 with self.assertRaises(ValueError):
                     gate.project_policy_from_yaml_json(json.dumps(document))
+
+    def test_project_parser_defaults_new_metadata_for_legacy_drafts(self):
+        document = json.loads(
+            (EXAMPLE / "translation-project.yaml").read_text(encoding="utf-8")
+        )
+        for field in (
+            "source_origin", "delivery_format", "external_semantic_review"
+        ):
+            document.pop(field)
+
+        policy = gate.project_policy_from_yaml_json(json.dumps(document))
+
+        self.assertEqual(policy.source_origin, "unknown")
+        self.assertEqual(policy.delivery_format, "other")
+        self.assertEqual(policy.external_semantic_review, "allow")
+        self.assertFalse(policy.source_origin_declared)
+        self.assertFalse(policy.delivery_format_declared)
+        policy = gate.ProjectPolicy(
+            **{
+                **policy.__dict__,
+                "level": "public",
+            }
+        )
+        self.assertEqual(
+            gate.check_release_governance(policy, [], strict=True)[0], gate.FAIL
+        )
+
+    def test_publication_delivery_rejects_conversational_register(self):
+        document = json.loads(
+            (EXAMPLE / "translation-project.yaml").read_text(encoding="utf-8")
+        )
+        document["source_origin"] = "oral_talk"
+        document["delivery_format"] = "publication_book"
+        document["register"]["formality"] = "conversational"
+
+        with self.assertRaisesRegex(ValueError, "conversational"):
+            gate.project_policy_from_yaml_json(json.dumps(document))
 
     def test_review_findings_parser_rejects_invalid_or_empty_schema_fields(self):
         valid = {
@@ -234,6 +274,131 @@ class ProjectInterfaceTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     gate.review_findings_from_jsonl(json.dumps(record))
 
+    def test_review_findings_parser_accepts_valid_provenance_and_rejects_bad_hashes(self):
+        valid = {
+            "finding_id": "f-1",
+            "paragraph_id": "L1",
+            "severity": "major",
+            "category": "meaning",
+            "message": "The predicate changed.",
+            "suggestion": "Preserve the source predicate.",
+            "status": "open",
+            "reviewer": "Reviewer",
+            "stage": "semantic_review",
+            "provider": "deepseek",
+            "model": "deepseek-v4-pro",
+            "source_sha256": "a" * 64,
+            "target_sha256": "b" * 64,
+        }
+
+        parsed = gate.review_findings_from_jsonl(json.dumps(valid))
+
+        self.assertEqual(parsed[0]["stage"], "semantic_review")
+        with self.assertRaisesRegex(ValueError, "target_sha256"):
+            gate.review_findings_from_jsonl(
+                json.dumps({**valid, "target_sha256": "not-a-digest"})
+            )
+
+    def test_sensitive_and_deny_projects_reject_external_semantic_artifacts(self):
+        project = gate.ProjectPolicy(
+            author="Author",
+            translator="Translator",
+            genre="other",
+            level="sensitive",
+            independent_review_required=True,
+            review_completed=True,
+            reviewer="Reviewer",
+            named_approver_required=True,
+            approved=True,
+            approver="Approver",
+            approval_note="Approved.",
+            external_semantic_review="allow",
+        )
+        external_certificate = gate.SemanticReviewCertificate(
+            provider="deepseek",
+            model="deepseek-v4-pro",
+            source_sha256="a" * 64,
+            target_sha256="b" * 64,
+            review_round=2,
+            blocking_findings=0,
+            blocking_finding_ids=(),
+            status="clear",
+            finding_ids=(),
+            findings_sha256="c" * 64,
+            generated_at="2026-08-12T00:00:00Z",
+            summary="Review complete.",
+        )
+        internal_certificate = gate.SemanticReviewCertificate(
+            **{
+                **external_certificate.__dict__,
+                "provider": "internal",
+                "model": "independent-internal-role",
+            }
+        )
+
+        self.assertEqual(
+            gate.check_external_semantic_policy(
+                project, certificate=external_certificate
+            )[0],
+            gate.FAIL,
+        )
+        self.assertEqual(
+            gate.check_external_semantic_policy(
+                project, certificate=internal_certificate
+            )[0],
+            gate.PASS,
+        )
+        self.assertEqual(
+            gate.check_external_semantic_policy(
+                project,
+                certificate=internal_certificate,
+                review_findings=[{"provider": "deepseek"}],
+            )[0],
+            gate.FAIL,
+        )
+
+    def test_semantic_certificate_binds_exact_blocking_finding_ids(self):
+        document = json.loads(
+            (EXAMPLE / "semantic-review.json").read_text(encoding="utf-8")
+        )
+        parsed = gate.semantic_review_from_json(json.dumps(document))
+        self.assertEqual(parsed.blocking_finding_ids, ())
+
+        invalid = copy.deepcopy(document)
+        invalid["blocking_findings"] = 1
+        with self.assertRaisesRegex(ValueError, "length must equal"):
+            gate.semantic_review_from_json(json.dumps(invalid))
+
+        certificate = gate.SemanticReviewCertificate(
+            provider="internal",
+            model="independent-internal-role",
+            source_sha256="a" * 64,
+            target_sha256="b" * 64,
+            review_round=1,
+            blocking_findings=1,
+            blocking_finding_ids=("certified-major",),
+            status="blocking",
+            finding_ids=(),
+            findings_sha256="c" * 64,
+            generated_at="2026-08-12T00:00:00Z",
+            summary="One blocker remains.",
+        )
+        different_history = [{
+            "finding_id": "different-major",
+            "severity": "major",
+            "status": "open",
+        }]
+        result = gate.check_semantic_review(
+            None,
+            certificate,
+            source_sha256="a" * 64,
+            target_sha256="b" * 64,
+            findings_sha256="c" * 64,
+            findings=different_history,
+        )
+        self.assertEqual(result[0], gate.FAIL)
+        self.assertIn("blocking_finding_ids", result[1])
+
     def test_public_example_passes_atomic_generation_and_strict_gate(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             project = Path(temp_dir) / "minimal-article"
@@ -243,7 +408,9 @@ class ProjectInterfaceTests(unittest.TestCase):
                 "target.dj",
                 "term-map.yaml",
                 "translation-project.yaml",
+                "source-analysis.json",
                 "review-findings.jsonl",
+                "semantic-review.json",
             ):
                 shutil.copy2(EXAMPLE / name, project / name)
 

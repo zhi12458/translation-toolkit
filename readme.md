@@ -150,25 +150,38 @@ commit them.
 | Check a release | `./scripts/check-translation.py ../translate-files/my-article/ --strict --json --output ../translate-files/my-article/qa-report.json` — zero FAIL and zero SKIP |
 | Search the term database | `./terms-database/search.py 空性` |
 | Run the term database UI | `./terms-database/server.py` then open <http://127.0.0.1:8910> |
+| Select ambiguous source paragraphs for K3 | `./scripts/select-kimi-focus.py ../translate-files/my-article/ --format args` — reads a complete internal `source-analysis.json`, never the English target |
+| Blindly analyze only difficult paragraphs | `./scripts/kimi-source-analysis.py ../translate-files/my-article/ --paragraph-id L57 --timeout 600 --retries 1` — complete Chinese context, focused output; cannot replace the canonical full analysis |
+| Benchmark full K3 source analysis | `./scripts/kimi-source-analysis.py ../translate-files/my-article/` — retained for admission testing or projects without an internal source-only analyst; not the routine default |
+| Independently review bilingual accuracy | `./scripts/deepseek-review.py ../translate-files/my-article/` — focused 20-paragraph batches with adjacent context; reads no K3 analysis; merges only after every batch validates |
+| Compare K3 and V4 Pro on the gold set | `./scripts/semantic-model-benchmark.py --live --runs 3 --output /tmp/semantic-model-benchmark.json` — explicit credentials only; not run in CI |
 
 Search results are deterministic: exact Chinese matches, longer/more-specific
 entries, documented source authority, then database row ID.
 
 ## Quality records
 
-New projects should maintain four machine-readable interfaces:
+New projects should maintain six machine-readable interfaces:
 
-- `translation-project.yaml` — author/translator, genre, audience, register,
-  scripture/Sanskrit policy, versions, independent review, and approval;
+- `translation-project.yaml` — author/translator, source origin, delivery
+  format, external semantic-review policy, register, versions, review, and
+  approval;
 - `term-map.yaml` — one frozen project sense per Chinese term, with preferred,
   allowed, and forbidden renderings;
-- `review-findings.jsonl` — paragraph-level review severity and resolution;
+- `source-analysis.json` — blind Chinese predicates, roles, scope and
+  ambiguity, bound to the source, project metadata, frozen term map and exact
+  paragraph coverage; it is never derived from the English draft;
+- `review-findings.jsonl` — paragraph-level review severity, resolution, and
+  optional stage/model/hash provenance;
+- `semantic-review.json` — final semantic-review round and freshness hashes;
 - `qa-report.json` — explicit `PASS/WARN/SKIP/FAIL` gate results.
 
 Schemas are under `schemas/`. Strict mode requires `release.level` to be
 `public` or `sensitive`, terminology coverage of at least 99%, independent
 review with no unresolved (`open` or `deferred`) critical/major finding, and named human approval. These
-mechanical checks still cannot establish semantic or doctrinal correctness.
+mechanical checks also require a fresh, clear post-polish semantic-review
+certificate and a schema-valid source analysis bound to all frozen inputs, but still cannot
+establish semantic or doctrinal correctness.
 
 ## Tests and Codeberg CI
 
@@ -193,6 +206,9 @@ Docs, as arranged by your project coordinator.
 - `AGENTS.md` — full MPI project conventions, translation workflows, review rules, and Workflow C: the herdr batch workflow for translating or reviewing many books in parallel (one omp pane per book).
 - `docs/stable-workflow.zh-CN.md` — detailed Chinese installation, full workflow, strict release gate, and old submodule migration notes.
 - `docs/quality-interfaces.md` — schemas and release policy for project metadata, term decisions, findings, and QA.
+- `docs/semantic-review-workflow.zh-CN.md` — blind K3 source analysis,
+  independent V4 Pro accuracy review, written-register policy, credentials,
+  freshness gates, and the two-track gold benchmark.
 - `skills/readme.dj` — how the skills are organized.
 - workspace sibling `references/` — private project references; it is not part
   of this public repository.

@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "stage": "semantic_review",
+  "provider": "internal",
+  "model": "fixture-human-review",
+  "source_sha256": "1773def231efe0ccf410a5d666ed49edea16ebce7388139752510bdc425cf480",
+  "target_sha256": "e549cb81d0d2c9e80ddf44dc6ad9faa2f0f3d3c24dbff605e8f9dfb458e23e32",
+  "review_round": 2,
+  "blocking_findings": 0,
+  "blocking_finding_ids": [],
+  "status": "clear",
+  "finding_ids": [
+    "example-001"
+  ],
+  "findings_sha256": "7e59ffe2f5976d22f0d27596bf96bdfce1a0c0b0965f6f7008b8507fe02f21b8",
+  "generated_at": "2026-08-12T00:00:00Z",
+  "summary": "Internal fixture certificate for deterministic gate testing; this does not claim an external model run."
+}

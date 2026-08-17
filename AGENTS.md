@@ -5,7 +5,10 @@
 You are working on the Mindful Peace International Chinese-English Buddhist/Dharma translation project.
 - Before translating, load the `mpi-translation` and `mpi-terms-search` skills.
 - Before reviewing, load `mpi-translation-review` (self mode for your own translations, other mode for peer review).
-- The agent IS the model: do not call external translation APIs.
+- The agent IS the translator: do not call external APIs to generate final
+  English. Approved external models may analyze Chinese meaning or review an
+  existing bilingual draft when `external_semantic_review: allow`; they never
+  decide the final English wording.
 - The workflow is not as rigid as the state machine below. The user may ask you to deviate from it. Be flexible when asked.
 
 ## Skills
@@ -27,15 +30,20 @@ See `mpi-terms-search` skill. Quick reference:
 
 ```
 translate-files/<topic>/<article>/
-  translation-project.yaml — genre, audience, register, versions, release level
+  translation-project.yaml — source origin, delivery format, register, policy,
+                             versions, release level
   term-map.yaml   — sense-specific term decisions and review state
   term-map.md     — legacy mechanical-gate format; new projects use YAML only
   source.dj      — Chinese original
+  source-analysis.json — frozen blind Chinese source-meaning analysis; never
+                         generated from or sent together with target.dj
   target.dj      — English translation (line count matches source)
   bilingual.dj   — canonical interleave (source line, target line, blank)
                    Generated with `gen-bilingual.py source.dj target.dj --output bilingual.dj`;
                    do not edit or commit.
   review-findings.jsonl — independent-review findings and resolution state
+  semantic-review.json — final accuracy-review certificate bound to source and
+                         target SHA-256 hashes
   qa-report.json  — generated PASS/WARN/SKIP/FAIL gate report; do not commit
 ```
 
@@ -52,12 +60,18 @@ Non-deterministic LLM work happens at the states; transitions are fixed.
 |---|---|---|---|
 | `*start*` | source loaded | `idle` | Begin from a new source. |
 | `*start*` | bilingual loaded | `idle` | Begin from an existing review file. |
-| `idle` | `SOURCE_LOADED` | `translating` | |
+| `idle` | `SOURCE_LOADED` and blind analysis enabled | `source_analyzing` | K3 or an independent internal source-only role. |
+| `idle` | `SOURCE_LOADED` and blind analysis skipped | `translating` | Record the policy reason. |
+| `source_analyzing` | `SOURCE_ANALYSIS_FROZEN` | `translating` | Source hash and paragraph coverage verified. |
 | `idle` | `BILINGUAL_LOADED` | `other_reviewing` | |
 | `translating` | `TRANSLATION_DRAFTED` | `bilingual_ready` | |
 | `bilingual_ready` | `BILINGUAL_GENERATED` | `self_reviewing` | |
 | `self_reviewing` | `SELF_REJECTED` | `translating` | |
-| `self_reviewing` | `SELF_APPROVED` and peer review required | `other_reviewing` | `release.independent_review_required` decides the branch. |
+| `self_reviewing` | `SELF_APPROVED` and semantic review enabled | `semantic_reviewing` | V4 Pro or independent internal bilingual reviewer; blind to source analysis. |
+| `semantic_reviewing` | `SEMANTIC_REJECTED` and repair cycles < 2 | `translating` | Apply confirmed meaning constraints, polish, then rerun. |
+| `semantic_reviewing` | `SEMANTIC_REJECTED` after 2 cycles | `other_reviewing` | Blocking issues require human adjudication. |
+| `semantic_reviewing` | `SEMANTIC_APPROVED` and peer review required | `other_reviewing` | Final certificate hashes match current files. |
+| `self_reviewing` | `SELF_APPROVED` and only peer review required | `other_reviewing` | `release.independent_review_required` decides the branch. |
 | `self_reviewing` | `SELF_APPROVED` and no peer review | `approved` | |
 | `other_reviewing` | `PEER_REJECTED` | `translating` | |
 | `other_reviewing` | `PEER_APPROVED` | `approved` | |
@@ -68,9 +82,13 @@ Non-deterministic LLM work happens at the states; transitions are fixed.
 States:
 
 : `idle` — Waiting for source or an existing bilingual file.
+: `source_analyzing` — Reconstructing Chinese predicates, roles, relations, and
+  scope without access to an English draft.
 : `translating` — Draft `target.dj`.
 : `bilingual_ready` — `bilingual.dj` generated from `source.dj` + `target.dj`.
 : `self_reviewing` — Self-review with `mpi-translation-review` (self mode); edit `target.dj`.
+: `semantic_reviewing` — Independent bilingual accuracy review, blind to the
+  source-analysis artifact; merge findings and bind the review to file hashes.
 : `other_reviewing` — Peer review with `mpi-translation-review` (other mode); write `review-findings.jsonl`.
 : `approved` — Translation accepted; may typeset or finish.
 : `typesetting` — Produce PDF/DOCX.
@@ -87,7 +105,14 @@ Translate Chinese source into English. The agent IS the model — no external AP
 
 ### Source context
 
-Before translating, the agent must understand the source's format and delivery context. If the source is a transcript of an oral talk, a book excerpt, a guided meditation script, a Q&A, a written article, or any other genre, that register shapes the translation. If this context is not clear from the file path or source content, ask the user before proceeding.
+Before translating, distinguish `source_origin` from `delivery_format`. A talk
+compiled into an article or book is publication prose even though its source is
+oral: polished, written, warm, and restrained, without chatty contractions,
+slang, or casual fragments outside quotations. Preserve first person,
+rhetorical questions, reasoning sequence, simple analogies, and gentle voice.
+Only transcript, subtitle, Q&A-dialogue, audio-script, and similar deliverables
+should retain conspicuously spoken surface features. If either field is unclear,
+ask the user before proceeding.
 
 ### Input
 
@@ -96,6 +121,8 @@ Source text in `.dj` or `.docx` (Chinese only).
 ### Deliverables
 
 - `source.dj` — extracted/cleaned Chinese
+- `source-analysis.json` — blind, hash-bound source-meaning analysis when the
+  semantic-analysis stage is enabled
 - `target.dj` — English translation, line count matches source
 - `bilingual.dj` — interleaved (source line, target line adjacent, blank between pairs).
   Generated by `../../toolkit/scripts/gen-bilingual.py source.dj target.dj --output bilingual.dj`.
@@ -103,18 +130,90 @@ Source text in `.dj` or `.docx` (Chinese only).
 - `edit-suggestions.dj` — terminology/consistency issues flagged for review
 - `translation-project.yaml` and a frozen `term-map.yaml`. The mechanical gate
   reads its JSON-compatible YAML 1.2 representation directly.
+- `review-findings.jsonl` merged without deleting earlier review history, and a
+  fresh `semantic-review.json` after the final accuracy review.
 - `qa-report.json` from `check-translation.py . --strict --json --output qa-report.json` before release.
 
 ### Rules
 
 1. Load `mpi-translation` and `mpi-terms-search` skills before starting.
 2. Search terms DB for key Buddhist terms.
-3. TOC: plain bullet lists, no link targets, no page numbers.
-4. Djot formatting:
+3. Titles and headings: translate the semantic head, modifiers, logical
+   relation, and distinctions in a parallel series accurately. Prefer concise,
+   immediately understandable English; publication formality must not add
+   abstract scaffolding. Verify main title, TOC, and repeated body headings as
+   a separate pass, with identical repeated renderings.
+4. TOC: plain bullet lists, no link targets, no page numbers.
+5. Djot formatting:
    - Emphasis: `*text*` (single asterisks). Never `**` (Markdown bold).
    - Comments: `{% ... %}`
-5. Preserve source formatting — don't add/remove emphasis.
-6. Translate in-response — never call external translation APIs.
+6. Preserve source formatting — don't add/remove emphasis.
+7. Translate in-response — never call external APIs to draft or polish the
+   final English. External semantic-analysis/review calls follow the separate
+   policy below.
+
+### Four-stage semantic workflow
+
+For projects that allow external semantic review, use this sequence. For
+`release.level: sensitive` or `external_semantic_review: deny`, replace K3 and
+V4 Pro with independent internal roles while preserving the same blind
+separation and artifacts.
+
+1. **Kimi K3 blind source analysis.** Run
+   `scripts/kimi-source-analysis.py <project-dir>`. It may read only the full
+   Chinese source, project metadata, and term map; it must never read or send
+   `target.dj`. The validated, atomically written `source-analysis.json`
+   records predicates, semantic roles and evidence status, clause relations,
+   scope, reference/ellipsis, competing interpretations, and
+   `must_preserve`/`must_not_invent`. A nullable or ambiguous role must not be
+   filled simply to satisfy the schema. Production calls are serial with
+   `reasoning_effort: high`, one paragraph per recoverable batch, and an
+   effective concurrency of one. The client enforces the documented China
+   Tier 1 budget (200 RPM, 2,000,000 TPM) locally and uses bounded backoff for
+   HTTP 429; reserve `max` for a hard passage or an explicit performance test.
+   If K3 exhausts its retry or elapsed-time budget, Qwen3.8-Max may be evaluated
+   with `scripts/qwen-source-analysis.py <project-dir>` as a whole-document
+   blind candidate, but it is not an automatic fallback until that exact
+   account-visible model ID and endpoint pass the same gold set. It writes
+   `source-analysis-qwen.json`; never mix Kimi and Qwen paragraph batches, and
+   promote only one fully locally validated artifact.
+2. **English drafting.** The translating agent reads Chinese, the frozen term
+   map, and the hash-matching source analysis, then writes publication-quality
+   English for publication deliverables. The analysis constrains meaning; it
+   is not an English draft.
+3. **DeepSeek V4 Pro independent accuracy review.** Run
+   `scripts/deepseek-review.py <project-dir>`. It reads Chinese, English, term
+   map, and project metadata, but never K3 output. It emits Chinese findings and
+   meaning constraints, not final English wording. Long work is split into
+   focused paragraph batches with adjacent read-only context; all batches must
+   validate before new findings are merged atomically into
+   `review-findings.jsonl`. Existing history is never replaced.
+4. **English repair and written polish.** The translating agent applies only
+   confirmed accuracy findings, then polishes the English for the declared
+   delivery format. Run V4 Pro again after polishing. The final
+   `semantic-review.json` source and target hashes must match the current files.
+   After two automated repair cycles, any blocking finding goes to a human;
+   do not continue a model rewrite loop.
+
+K3 and V4 Pro are independent evidence sources, not voters. If they conflict,
+retain both records and have a human adjudicate from the full context.
+
+### External semantic-review policy and credentials
+
+`translation-project.yaml` records `external_semantic_review: allow | deny`.
+The default policy is allow, but sensitive projects always behave as deny. Do
+not send a non-public manuscript through an exposed or unrotated credential.
+
+- Kimi China: `https://api.moonshot.cn/v1`, model `kimi-k3`; read
+  `KIMI_API_KEY`, then macOS Keychain service `mpi-kimi-review`.
+- DeepSeek: `https://api.deepseek.com`, model `deepseek-v4-pro`; read
+  `DEEPSEEK_API_KEY`, then macOS Keychain service `mpi-deepseek-review`.
+
+The scripts do not accept keys on the command line, print credentials, store
+them in project files, or echo provider response bodies in error messages.
+Kimi uses strict JSON Schema subject to the provider's MFJS subset. DeepSeek's
+standard JSON mode guarantees JSON syntax only, so its output is always
+validated locally before any file is changed.
 
 ### Review
 
@@ -124,6 +223,8 @@ After translating, load `mpi-translation-review` (self mode) to check:
 - Grammar, fluency, calques
 - Missing content (mid-paragraph truncation)
 - Inconsistency (same term translated differently)
+- Main title and every heading for semantic accuracy, plainness, concision,
+  parallel structure, and exact TOC/body consistency
 
 ---
 
@@ -156,6 +257,9 @@ Someone else translated it (volunteer, etc.). Load `mpi-translation-review` skil
 3. Do NOT edit `target.dj` — write one structured record per issue to
    `review-findings.jsonl`. A human-readable `review-comments.dj` may be added,
    but it is not the canonical status record.
+   Automated accuracy reviewers add `stage`, `provider`, `model`,
+   `source_sha256`, and `target_sha256`, and merge by stable finding ID without
+   overwriting older records.
 4. Follow deliberation protocol: 随喜 first, questions not commands.
 5. Address translator by name.
 6. Ask the user whether to apply the findings. If yes, switch to Direct Edit Mode.
@@ -170,6 +274,8 @@ a translation-review pass, or be a standalone polish pass.
 3. Batch all fixes into one set of exact-string replacements. Apply with `patch`.
 4. Regenerate `bilingual.dj` with `../../toolkit/scripts/gen-bilingual.py source.dj target.dj --output bilingual.dj`.
 5. Verify both line counts and blank-line positions match.
+6. After written polish, rerun the independent accuracy reviewer and verify the
+   resulting `semantic-review.json` hashes match the current source and target.
 
 Avoid iterative "find a few more, edit again" loops. If the user asks "anything
 else?" after a direct-edit pass, do one more full systematic read and batch again.
@@ -182,6 +288,12 @@ Run one book/article per omp session in its own herdr pane. A historical
 9-book batch (2026-08-07) used 9 review panes and one apply pass per pane.
 Its legacy mechanical checks were green; that result is not evidence of
 semantic quality and predates the current strict release records.
+
+The four-stage semantic workflow still applies independently inside each book
+directory. Do not use parallel panes to bypass K3's production rule of serial
+`high` requests for one manuscript, and never give a V4 reviewer another
+model's source analysis. For sensitive/deny batches, use distinct internal
+source-only and bilingual roles instead of the provider scripts.
 
 ### Setup
 
@@ -224,7 +336,8 @@ shows the dir.
 6. Move each pane to its own tab so the batch is watchable while it runs:
    `herdr pane move <pane> --new-tab --label <name> --no-focus`.
 7. After all reviews finish, submit the apply prompt (C below) to every pane,
-   wait to completion, and run the draft gate. A named human then approves the
+   wait to completion, rerun the blind bilingual accuracy reviewer after the
+   written polish, and run the draft gate. A named human then approves the
    resolved manuscript and updates `translation-project.yaml`; only after that
    run `check-translation.py --strict` and spot-check the landed fixes.
 8. Package: `zip -r <batch>-reviewed.zip batch0-*/`, list the archive, and
@@ -234,15 +347,15 @@ shows the dir.
 
 **A — Translate a book** (one session per book, Workflow A):
 
-> Translate the book <NAME> (file: <NAME>.docx) from Chinese to English for the MPI translation project. Follow Workflow A in ../../toolkit/AGENTS.md: (1) load the mpi-translation and mpi-terms-search skills from ../../toolkit/skills/; (2) extract the Chinese source atomically with ../../toolkit/scripts/docx2dj.fish '<NAME>.docx' source.dj; (3) translate the ENTIRE book into target.dj (English; line count and blank-line positions match source; you ARE the model — no external translation APIs; look up key Buddhist terms with ../../toolkit/terms-database/search.py); (4) generate bilingual.dj atomically: ../../toolkit/scripts/gen-bilingual.py source.dj target.dj --output bilingual.dj; (5) self-review with mpi-translation-review (self mode), edit target.dj, and write edit-suggestions.dj for terminology issues; (6) regenerate bilingual.dj and run draft QA with ../../toolkit/scripts/check-translation.py . --json --output qa-report.json. Strict QA is deferred until independent review and named human approval are recorded. Deliverables in this folder: source.dj, target.dj, bilingual.dj, edit-suggestions.dj, qa-report.json. Do not commit generated files. Report when done.
+> Translate the book <NAME> (file: <NAME>.docx) from Chinese to English for the MPI translation project. Follow Workflow A and its four-stage semantic workflow in ../../toolkit/AGENTS.md: (1) load the mpi-translation and mpi-terms-search skills; (2) extract source.dj atomically and freeze translation-project.yaml plus term-map.yaml; (3) when policy allows, run ../../toolkit/scripts/kimi-source-analysis.py . before target.dj exists; for sensitive/deny use an independent internal source-only role; (4) translate the ENTIRE book yourself using Chinese, frozen terms, and the hash-matching source analysis—external APIs must not generate final English; line count and blank positions match source; (5) generate bilingual.dj, self-review with mpi-translation-review, and edit target.dj; (6) run ../../toolkit/scripts/deepseek-review.py . without giving it source-analysis.json, or the independent internal bilingual equivalent; (7) apply confirmed accuracy constraints, complete publication-register polish, and rerun the independent accuracy review; after two blocking rounds stop for a human; (8) regenerate bilingual.dj and run draft QA. Strict QA waits for fresh semantic-review hashes, independent review, and named human approval. Preserve review history; do not commit generated bilingual/QA files. Report when done.
 
 **B — Review a book** (Herdr pane, slow role; writes `review-findings.jsonl` only):
 
-> Review the translation in this directory (your cwd is the book dir). Files: source.dj (Chinese source), target.dj (English translation), bilingual.dj (bilingual), edit-suggestions.dj (prior edit suggestions, may be stale). Read source and target fully and review the English translation for: (1) accuracy vs source — mistranslations, omissions, additions, meaning drift; (2) Buddhist terminology — consistent, standard renderings; (3) fluency and register — natural, idiomatic English appropriate to the genre; (4) completeness — every source section covered. Write one JSON object per line to review-findings.jsonl using ../../toolkit/schemas/review-finding.schema.json (or the absolute toolkit path). Severity is critical/major/minor/discussion; status begins open. Include paragraph_id, category, concrete suggestion, and reviewer. Do NOT modify source.dj, target.dj, or bilingual.dj. End your final message with a one-paragraph summary.
+> Review the translation in this directory (your cwd is the book dir). Read translation-project.yaml first: judge register by delivery_format, not source_origin alone; compiled articles/books use polished written English even when sourced from talks. Independently reconstruct the Chinese predicates, semantic roles, clause relations, scope, time/modality, and reference chains before comparing target.dj. Review accuracy, Buddhist terms, completeness, fluency, and declared register. Do not read source-analysis.json. Safely merge one schema-valid JSON object per issue into review-findings.jsonl; preserve all existing records and fail on a conflicting finding_id. Do NOT modify source.dj, target.dj, or bilingual.dj. End with a one-paragraph summary.
 
 **C — Apply findings** (same pane, direct-edit mode):
 
-> Apply your review findings now. This is direct-edit mode per project convention. 1) Read review-findings.jsonl and target.dj fully. 2) Apply EVERY accepted actionable finding to target.dj with exact-string replacements, batched in one pass. Update each finding status and resolution_note; never delete its history. 3) CRITICAL: do not add or remove any line — source.dj and target.dj line counts and blank-line positions must remain identical. 4) Regenerate bilingual.dj atomically: <abs path>/gen-bilingual.py source.dj target.dj --output bilingual.dj. 5) Run the draft gate: <abs path>/check-translation.py . --json. After a named human records approval in translation-project.yaml, run it again with --strict --json --output qa-report.json. If approval is still pending, report that strict release is pending rather than fabricating approval. Report what you changed and the check result.
+> Apply your review findings now. This is direct-edit mode per project convention. 1) Read review-findings.jsonl and target.dj fully. 2) Apply EVERY accepted accuracy finding first, then do one publication-register polish when delivery_format is publication_article/publication_book. Update finding status and resolution_note; never delete history. 3) Do not add/remove lines: source/target counts and blank positions stay identical. 4) Regenerate bilingual.dj. 5) Rerun the independent bilingual accuracy review after polish; it must remain blind to source-analysis.json. If the second automated round still blocks, stop for human adjudication. 6) Run the draft gate. Strict release requires current source/target/findings hashes in a clear semantic-review.json plus named human approval; never fabricate either. Report changes and checks.
 
 ### Gotchas（踩过的坑）
 

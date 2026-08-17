@@ -13,7 +13,22 @@ terms DB query, workflows, output format) are in AGENTS.md.
 
 ## Source context
 
-Before translating, understand the source's format and delivery context. Is it a transcript of an oral talk, a book excerpt, a guided meditation script, a Q&A, a written article, or another genre? The register shapes the translation. If the context is not clear from the file path or source content, ask the user before proceeding. If you cannot identify the author, write the target text with the style of 济群法师.
+Before translating, distinguish **where the Chinese came from** from **what the
+English will be delivered as**. Record both in `translation-project.yaml`:
+
+- `source_origin`: oral talk, written text, mixed, or unknown;
+- `delivery_format`: publication article/book, transcript, subtitles, audio
+  script, guided practice, or other.
+
+Delivery format governs the English register. An article or book compiled from
+a Dharma talk is still publication prose: polished, written, warm, and
+restrained, without chatty phrasing, slang, or contractions outside quotations.
+Preserve the teacher's first person, rhetorical questions, reasoning sequence,
+plain analogies, and gentle manner; written does not mean academic or impersonal.
+Only transcript-like deliverables, subtitles, and spoken scripts should retain
+strongly conversational surface features. If this context is unclear, ask the
+user before proceeding. If you cannot identify the author, preserve the calm,
+reasoned voice associated with 济群法师 without inventing personal mannerisms.
 
 ## Mindfulness Bell Corpus
 
@@ -37,9 +52,39 @@ Quick-find in index: Thầy talks → `"Thích Nhất Hạnh"` + page ≤ 10; te
 
 1. **Terms**: Either keep Sanskrit w/ narrative explanation (bodhisattva, Māra) OR coin new English (interbeing, inter-are). Avoid clunky calques.
 2. **Cultural bridging**: Add bridges for Western readers. A Chinese text mentioning 孔子 can stay; explain the function. Đoan Nghiêm's "like Jesus" is the pattern.
-3. **Tone**: Chinese Dharma texts are typically more formal than English equivalents. Decide consciously: keep formality or warm up (Thầy style).
-4. **Voice**: Direct address ("you"), concrete images, and oral rhythm make Dharma land in English. Abstract noun chains (common in Chinese→English translationese) kill it.
+3. **Tone**: Follow `delivery_format` and the declared register. Publication
+   prose should be lucid and warm but recognizably written; do not equate
+   accessibility with casual speech.
+4. **Voice**: Preserve direct address, concrete images, and the teacher's
+   reasoning where the source contains them. Do not add oral fillers or a
+   conversational persona merely because the source originated as a talk.
 5. **Sutra quotes**: Use standard English Buddhist idiom. Check terse-idiom conventions (e.g., Diamond Sutra "lives" not "bodies").
+
+## Titles and headings
+
+Translate the title system as a separate editorial unit before treating it as
+formatting. For the main title, every table-of-contents entry, and every body
+heading:
+
+- identify the semantic head and its modifiers; preserve contrasts, purpose or
+  path relations, and distinctions such as 根本 / 基础 / 关键 rather than
+  replacing them with a generic attractive phrase;
+- prefer the shortest idiomatic English noun phrase that carries the full
+  distinction. Publication formality is not a reason to add abstractions such
+  as “the process of,” “progress toward,” or “an exploration of” when the
+  source does not require them;
+- translate parallel Chinese headings in visibly parallel English. Do not let
+  one member become a clause while its siblings remain noun phrases;
+- compare title choices with the terminology map and established published
+  titles, but do not force a body-term rendering into a title when it becomes
+  opaque or misleading;
+- make every repeated TOC/body occurrence identical after numbering and Djot
+  markers are removed. A correct hierarchy does not prove a correct title.
+
+Before freezing a title, paraphrase its meaning in plain Chinese and back-check
+the proposed English against that paraphrase. If two concise readings remain
+credible, record the alternatives for human choice rather than selecting the
+more impressive-sounding one.
 
 ## Speaker's Voice (语气)
 
@@ -71,9 +116,29 @@ that got the tone right but flattened the teacher's voice. 语气 lives in:
 - **Measured authority.** Calm, composed, unhurried. No hype, no exclamation-
   point enthusiasm, no academic hedging ("arguably", "it could be said").
 
-Check: read a paragraph aloud as if delivering a talk to a lay audience. If it
-sounds like an essay, a lecture abstract, or a motivational speaker, the 语气
-has been lost.
+Check the voice against the intended delivery. A publication article or book
+should read as composed prose while still sounding like the same teacher; a
+transcript or audio script should remain speakable. If either becomes an
+academic abstract or motivational-speaker copy, the 语气 has been lost.
+
+## Source-meaning analysis before English drafting
+
+When a frozen `source-analysis.json` is present, read it together with the
+Chinese and term map before drafting. It constrains meaning; it is not an
+English draft and must not replace reading the source. In particular:
+
+- preserve each predicate's action type, participants, clause relation, scope,
+  tense/aspect, modality, negation, quantity, and degree;
+- treat `contextual_inference` as an inference and `ambiguous` as unresolved;
+- never turn a nullable or omitted participant into a definite "we," "people,"
+  or other agent merely to complete an English clause;
+- obey `must_preserve` and `must_not_invent`; route `needs_human` analyses to a
+  human instead of silently choosing one interpretation.
+
+English may change grammatical subject or active/passive voice for idiomatic
+reasons, but it must preserve semantic roles and information status. A new
+grammatical subject must not introduce a new actor or assert an ambiguous
+coreference as fact.
 
 ## Pitfalls
 
@@ -130,7 +195,9 @@ editors know it was deliberate, not a slip.
 ## Polishing (润色)
 
 After translating, do a deliberate readability pass before submitting for review.
-Read the English aloud — if a sentence can't be spoken in one breath, fix it.
+For spoken deliverables, read the English aloud and respect breath units. For
+publication prose, read for cadence and syntactic control; a longer sentence is
+acceptable when its logic remains transparent.
 
 These are common patterns (not an exhaustive list). For the full taxonomy with
 more categories and examples, read
@@ -146,14 +213,21 @@ Examples of systematic adjustments:
 3. **Sentence splitting**. If a sentence has 3+ clauses and runs past one breath,
    split it. The source's period is not a contract — English readers need
    shorter breath units than Chinese readers.
-4. **Academic → plain**. `constitute` → `make up`; `facilitate` → `help`;
-   `endeavor to` → `try to`; `in order to` → `to`. These texts are lectures
-   and conversations, not journal articles.
-5. **Register match**. Dharma talks and dialogues should sound spoken —
-   contractions, direct address, concrete images. If the English reads like a
-   paper abstract, warm it up. Check against the MB corpus registers for the
-   target genre.
-6. **Review-specific calques**. For *人生百问*-style Q&A, check the pattern
+4. **Academic → clear**. `constitute` → `make up`; `facilitate` → `help`;
+   `endeavor to` → `seek to` or `try to`; `in order to` → `to`. Clear written
+   prose is neither bureaucratic nor chatty.
+5. **Compress without deleting meaning**. Remove duplicated framing, empty
+   transitions, paired near-synonyms, and abstract carrier phrases. Prefer one
+   concrete verb to a noun-plus-supporting-verb construction. After revision,
+   verify that negation, degree, logical relations, and the teacher's emphasis
+   have not been compressed away.
+6. **Delivery-register match**. Publication articles and books use polished
+   written Buddhist prose: no casual contractions, slang, chat fillers, or
+   sentence fragments outside quotations. Transcripts, subtitles, Q&A kept as
+   dialogue, and audio scripts may use conversational features. In every form,
+   retain concrete images and the source's direct address rather than adding or
+   deleting them for style.
+7. **Review-specific calques**. For *人生百问*-style Q&A, check the pattern
    tables in `../mpi-translation-review/references/translation-pitfalls.md` for recurring
    stiff calques ("keen on," "more ultimate," "choice difficulty," etc.) and
    the Buddhist-term register notes in `../mpi-translation-review/references/buddhist-terminology.md`.
@@ -215,7 +289,12 @@ Chinese and English grammatical categories do not map one-to-one. Common pitfall
 - **Tense/aspect**: Chinese verbs do not inflect for tense. Use English tense and aspect to convey time and viewpoint, not to mirror every Chinese particle. Be consistent with narrative viewpoint (past for stories, present for timeless Dharma statements).
 - **Voice**: English passives are common; Chinese uses passive-like structures differently. Avoid importing Chinese-style “bei” passives or agentless constructions into English. Convert to active when the agent is recoverable and the English register allows.
 - **Word order / topic-prominence**: Chinese is topic-prominent; English is subject-prominent. Do not reproduce Chinese topic-comment structures with “As for X …” unless the emphasis is intentional. Reconstruct the sentence around a clear English subject and predicate.
-- **Pronouns / person**: Chinese often omits subjects; English usually requires them. Supply “we,” “you,” or a concrete noun as appropriate to the register. Maintain the speaker–hearer relationship (e.g., a teacher addressing students) rather than defaulting to abstract third person.
+- **Pronouns / person**: Chinese often omits participants while English usually
+  requires a grammatical subject. First determine the predicate's semantic
+  roles and whether the omitted participant is recoverable. Supply “we,” “you,”
+  or a concrete noun only when the source or context licenses it; otherwise use
+  a neutral restructuring or mark the choice for human review. Maintain the
+  speaker–hearer relationship without converting ambiguity into fact.
 
 ### Textual equivalence: theme, information, and cohesion
 
@@ -252,25 +331,33 @@ translations, other mode for peer review).
 - [ ] **Terminology**: key Buddhist terms checked against the MPI terms DB
   (`mpi-terms-search` skill). Consistent within the file.
 - [ ] **Source faithfulness**: no concepts added, no details dropped.
+- [ ] **Titles and headings**: semantic head, modifiers, parallel distinctions,
+  and TOC/body repetitions are accurate and consistent.
 
 ### Readability
 
-- [ ] **Active voice**: abstract/subjectless passives converted to "we" or a
-  concrete agent where possible.
+- [ ] **Semantic roles before voice**: active/passive restructuring preserves
+  who acts, experiences, receives, benefits, or is affected; no omitted or
+  ambiguous agent is invented.
 - [ ] **Noun → verb**: `the propagation of` → `spread`; `placed emphasis on` →
   `emphasized`.
-- [ ] **Sentence length**: no sentence that cannot be spoken in one breath; split
-  at natural breaks.
+- [ ] **Sentence shape**: spoken deliverables respect breath units; publication
+  prose may use longer sentences only when the logic remains transparent.
 - [ ] **Plain vocabulary**: `constitute` → `is/make up`; `facilitate` → `help`;
   `endeavor to` → `try to`.
-- [ ] **Register**: match the genre — Dharma talks and dialogues should sound
-  spoken, not like paper abstracts.
+- [ ] **Register**: match `delivery_format` — compiled articles/books are
+  polished written prose even when `source_origin` is `oral_talk`; transcript,
+  subtitle, and audio-script deliverables may sound spoken.
 - [ ] **Concrete over abstract**: `mode of existence` → `way of living`;
   `ideological content` → `ideas`.
+- [ ] **Concise on the second read**: remove wording that can disappear without
+  changing meaning; do not shorten away qualification, logic, or voice.
 
 ### Final pass
 
-Read the entire English target aloud. If anything stalls, rephrase it.
+Read the entire target in its intended mode: aloud for spoken delivery, or as a
+publication proof for articles and books. Rephrase anything whose logic or
+cadence stalls.
 
 ## Meditation / Mindfulness Content
 

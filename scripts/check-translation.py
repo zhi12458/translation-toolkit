@@ -41,6 +41,11 @@ Checks:
                               computed rendering from source+target
   14. release governance    — project release policy, independent review state,
                               unresolved findings, and named approval records
+  15. semantic freshness    — final review hashes match the current source,
+                              target, and merged findings; strict publication
+                              requires a clear post-polish rerun
+  16. external review policy— sensitive/deny projects use only internal
+                              source analysis and semantic review artifacts
 
 Usage:
     check-translation.py <book_dir>
@@ -65,6 +70,10 @@ Options:
     --project FILE     translation-project.yaml release metadata.
     --review-findings FILE
                        review-findings.jsonl status records.
+    --semantic-review FILE
+                       semantic-review.json final review certificate.
+    --source-analysis FILE
+                       source-analysis.json provenance record.
     --strict           Publication mode: require public/sensitive release
                        metadata, independent review, named approval, and fail
                        when any check is skipped.
@@ -75,12 +84,14 @@ Exit code: 0 when no check FAILs (WARNs and, outside --strict, SKIPs allowed),
 1 otherwise. Invalid or explicitly missing input paths use argparse exit code 2.
 """
 import argparse
+import hashlib
 import json
 import os
 import re
 import sys
 import tempfile
 from dataclasses import dataclass
+from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
 
@@ -93,6 +104,11 @@ CJK_RE = re.compile(
 CN_PUNCT_RE = re.compile(r"[，。、；：？！《》【】（）]")
 EMPHASIS_RE = re.compile(r"\*[^*\n]+\*")
 HEADING_RE = re.compile(r"^(#{1,6})(?:\s|$)")
+TITLE_MARKER_RE = re.compile(r"^\s*(?:(?:#{1,6})\s+|-\s+)")
+TITLE_NUMBER_RE = re.compile(
+    r"^(?:(?:[一二三四五六七八九十百]+[、．.])|(?:\d+[．.])|(?:[IVXLCDM]+[.)]))\s*",
+    re.IGNORECASE,
+)
 BOLD_RE = re.compile(r"\*\*")
 
 PASS, WARN, SKIP, FAIL = "PASS", "WARN", "SKIP", "FAIL"
@@ -122,6 +138,40 @@ class ProjectPolicy:
     approved: bool
     approver: str
     approval_note: str
+    source_origin: str = "unknown"
+    delivery_format: str = "other"
+    external_semantic_review: str = "allow"
+    source_origin_declared: bool = True
+    delivery_format_declared: bool = True
+
+
+@dataclass(frozen=True)
+class SemanticReviewCertificate:
+    """Integrity and disposition record for the final semantic review pass."""
+
+    provider: str
+    model: str
+    source_sha256: str
+    target_sha256: str
+    review_round: int
+    blocking_findings: int
+    blocking_finding_ids: tuple
+    status: str
+    finding_ids: tuple
+    findings_sha256: str
+    generated_at: str
+    summary: str
+
+
+@dataclass(frozen=True)
+class SourceAnalysisMarker:
+    """Integrity fields needed to enforce a frozen source-analysis snapshot."""
+
+    provider: str
+    source_sha256: str
+    project_sha256: str | None = None
+    term_map_sha256: str | None = None
+    paragraph_ids: tuple = ()
 
 
 def read_lines(path):
@@ -362,7 +412,10 @@ def project_policy_from_yaml_json(text):
         )
     reject_unknown_fields(
         document,
-        required_top_level | {"scriptures"},
+        required_top_level | {
+            "scriptures", "source_origin", "delivery_format",
+            "external_semantic_review",
+        },
         "translation-project.yaml",
     )
 
@@ -376,12 +429,28 @@ def project_policy_from_yaml_json(text):
     )
     require_nonempty_string(document.get("audience"), "translation-project.yaml audience")
     genre = document.get("genre")
+    source_origin_declared = "source_origin" in document
+    delivery_format_declared = "delivery_format" in document
+    source_origin = document.get("source_origin", "unknown")
+    delivery_format = document.get("delivery_format", "other")
+    external_semantic_review = document.get("external_semantic_review", "allow")
     release = document.get("release")
     if genre not in {
         "oral_talk", "written_article", "book", "guided_meditation", "qa",
         "scripture", "other",
     }:
         raise ValueError("translation-project.yaml genre is invalid")
+    if source_origin not in {"oral_talk", "written_text", "mixed", "unknown"}:
+        raise ValueError("translation-project.yaml source_origin is invalid")
+    if delivery_format not in {
+        "publication_article", "publication_book", "transcript", "subtitles",
+        "audio_script", "guided_practice", "other",
+    }:
+        raise ValueError("translation-project.yaml delivery_format is invalid")
+    if external_semantic_review not in {"allow", "deny"}:
+        raise ValueError(
+            "translation-project.yaml external_semantic_review must be allow or deny"
+        )
     if not isinstance(release, dict):
         raise ValueError("translation-project.yaml release object is required")
 
@@ -392,6 +461,14 @@ def project_policy_from_yaml_json(text):
         "conversational", "neutral", "formal", "liturgical",
     }:
         raise ValueError("translation-project.yaml register.formality is invalid")
+    if (
+        delivery_format in {"publication_article", "publication_book"}
+        and register.get("formality") == "conversational"
+    ):
+        raise ValueError(
+            "publication_article/publication_book delivery cannot use "
+            "conversational formality"
+        )
 
     cultural_bridge = document.get("cultural_bridge")
     reject_unknown_fields(
@@ -518,6 +595,11 @@ def project_policy_from_yaml_json(text):
         approved=approved,
         approver=approver.strip(),
         approval_note=approval_note,
+        source_origin=source_origin,
+        delivery_format=delivery_format,
+        external_semantic_review=external_semantic_review,
+        source_origin_declared=source_origin_declared,
+        delivery_format_declared=delivery_format_declared,
     )
 
 
@@ -528,7 +610,10 @@ def review_findings_from_jsonl(text):
         "finding_id", "paragraph_id", "severity", "category", "message",
         "suggestion", "status", "reviewer",
     }
-    allowed = required | {"resolution_note"}
+    provenance_fields = {
+        "stage", "provider", "model", "source_sha256", "target_sha256",
+    }
+    allowed = required | {"resolution_note"} | provenance_fields
     categories = {
         "meaning", "omission", "addition", "terminology", "scripture",
         "register", "fluency", "format", "other",
@@ -572,6 +657,18 @@ def review_findings_from_jsonl(text):
             raise ValueError(
                 f"review-findings.jsonl line {line_number} resolution_note must be a string"
             )
+        for field in ("stage", "provider", "model"):
+            if field in finding:
+                require_nonempty_string(
+                    finding[field],
+                    f"review-findings.jsonl line {line_number} {field}",
+                )
+        for field in ("source_sha256", "target_sha256"):
+            if field in finding and not re.fullmatch(r"[0-9a-f]{64}", finding[field]):
+                raise ValueError(
+                    f"review-findings.jsonl line {line_number} {field} must be "
+                    "a lowercase SHA-256 digest"
+                )
         if finding["severity"] not in {"critical", "major", "minor", "discussion"}:
             raise ValueError(
                 f"review-findings.jsonl line {line_number} has invalid severity"
@@ -586,6 +683,258 @@ def review_findings_from_jsonl(text):
             )
         findings.append(finding)
     return findings
+
+
+def semantic_review_from_json(text):
+    """Parse a final semantic-review certificate without repairing it."""
+    try:
+        document = json.loads(text)
+    except json.JSONDecodeError as exc:
+        raise ValueError(
+            "semantic-review.json must be valid JSON: "
+            f"{exc.msg} at line {exc.lineno}, column {exc.colno}"
+        ) from exc
+    required = {
+        "schema_version", "stage", "provider", "model", "source_sha256",
+        "target_sha256", "review_round", "blocking_findings",
+        "blocking_finding_ids", "status", "finding_ids", "findings_sha256",
+        "generated_at", "summary",
+    }
+    if not isinstance(document, dict):
+        raise ValueError("semantic-review.json must contain an object")
+    missing = sorted(required - document.keys())
+    if missing:
+        raise ValueError(
+            "semantic-review.json missing fields: " + ", ".join(missing)
+        )
+    reject_unknown_fields(document, required, "semantic-review.json")
+    if document["schema_version"] != 1:
+        raise ValueError("semantic-review.json schema_version must be 1")
+    if document["stage"] != "semantic_review":
+        raise ValueError("semantic-review.json stage must be semantic_review")
+    provider = require_nonempty_string(
+        document["provider"], "semantic-review.json provider"
+    )
+    model = require_nonempty_string(document["model"], "semantic-review.json model")
+    for field in ("source_sha256", "target_sha256", "findings_sha256"):
+        if not isinstance(document[field], str) or not re.fullmatch(
+            r"[0-9a-f]{64}", document[field]
+        ):
+            raise ValueError(
+                f"semantic-review.json {field} must be a lowercase SHA-256 digest"
+            )
+    review_round = document["review_round"]
+    blocking_findings = document["blocking_findings"]
+    if isinstance(review_round, bool) or not isinstance(review_round, int) or review_round < 1:
+        raise ValueError("semantic-review.json review_round must be an integer >= 1")
+    if (
+        isinstance(blocking_findings, bool)
+        or not isinstance(blocking_findings, int)
+        or blocking_findings < 0
+    ):
+        raise ValueError(
+            "semantic-review.json blocking_findings must be an integer >= 0"
+        )
+    blocking_finding_ids = document["blocking_finding_ids"]
+    if (
+        not isinstance(blocking_finding_ids, list)
+        or not all(
+            isinstance(value, str) and value.strip()
+            for value in blocking_finding_ids
+        )
+        or len(blocking_finding_ids) != len(set(blocking_finding_ids))
+    ):
+        raise ValueError(
+            "semantic-review.json blocking_finding_ids must be unique "
+            "non-empty strings"
+        )
+    if len(blocking_finding_ids) != blocking_findings:
+        raise ValueError(
+            "semantic-review.json blocking_finding_ids length must equal "
+            "blocking_findings"
+        )
+    status = document["status"]
+    if status not in {"clear", "blocking", "needs_human"}:
+        raise ValueError("semantic-review.json status is invalid")
+    allowed_statuses = (
+        {"clear"}
+        if blocking_findings == 0
+        else {"blocking", "needs_human"}
+    )
+    if status not in allowed_statuses:
+        raise ValueError(
+            "semantic-review.json status is inconsistent with blocking_findings"
+        )
+    finding_ids = document["finding_ids"]
+    if (
+        not isinstance(finding_ids, list)
+        or not all(isinstance(value, str) and value.strip() for value in finding_ids)
+        or len(finding_ids) != len(set(finding_ids))
+    ):
+        raise ValueError(
+            "semantic-review.json finding_ids must be unique non-empty strings"
+        )
+    generated_at = require_nonempty_string(
+        document["generated_at"], "semantic-review.json generated_at"
+    )
+    try:
+        generated_datetime = datetime.fromisoformat(
+            generated_at.replace("Z", "+00:00")
+        )
+        if generated_datetime.tzinfo is None:
+            raise ValueError("timezone offset is required")
+    except ValueError as exc:
+        raise ValueError(
+            "semantic-review.json generated_at must be an RFC 3339 timestamp"
+        ) from exc
+    summary = require_nonempty_string(
+        document["summary"], "semantic-review.json summary"
+    )
+    return SemanticReviewCertificate(
+        provider=provider,
+        model=model,
+        source_sha256=document["source_sha256"],
+        target_sha256=document["target_sha256"],
+        review_round=review_round,
+        blocking_findings=blocking_findings,
+        blocking_finding_ids=tuple(blocking_finding_ids),
+        status=status,
+        finding_ids=tuple(finding_ids),
+        findings_sha256=document["findings_sha256"],
+        generated_at=generated_at,
+        summary=summary,
+    )
+
+
+def _source_schema_type_matches(value, expected):
+    if expected == "object":
+        return isinstance(value, dict)
+    if expected == "array":
+        return isinstance(value, list)
+    if expected == "string":
+        return isinstance(value, str)
+    if expected == "integer":
+        return isinstance(value, int) and not isinstance(value, bool)
+    if expected == "number":
+        return isinstance(value, (int, float)) and not isinstance(value, bool)
+    if expected == "boolean":
+        return isinstance(value, bool)
+    if expected == "null":
+        return value is None
+    raise ValueError("source-analysis schema contains an unsupported type")
+
+
+def _validate_source_schema(value, schema, path="$"):
+    """Validate the dependency-free JSON-Schema subset used by this artifact."""
+    if "anyOf" in schema:
+        for alternative in schema["anyOf"]:
+            try:
+                _validate_source_schema(value, alternative, path)
+                break
+            except ValueError:
+                continue
+        else:
+            raise ValueError(f"source-analysis.json field {path} matches no allowed type")
+        return
+    if "const" in schema and (
+        type(value) is not type(schema["const"]) or value != schema["const"]
+    ):
+        raise ValueError(f"source-analysis.json field {path} has the wrong constant")
+    if "enum" in schema and not any(
+        type(value) is type(candidate) and value == candidate
+        for candidate in schema["enum"]
+    ):
+        raise ValueError(f"source-analysis.json field {path} is outside its enum")
+    expected_type = schema.get("type")
+    if expected_type is not None and not _source_schema_type_matches(value, expected_type):
+        raise ValueError(f"source-analysis.json field {path} has the wrong type")
+    if isinstance(value, dict):
+        properties = schema.get("properties", {})
+        missing = set(schema.get("required", ())) - set(value)
+        if missing:
+            raise ValueError(
+                f"source-analysis.json field {path} is missing required fields"
+            )
+        if schema.get("additionalProperties") is False and set(value) - set(properties):
+            raise ValueError(f"source-analysis.json field {path} has unknown fields")
+        for key, child in value.items():
+            if key in properties:
+                _validate_source_schema(child, properties[key], f"{path}.{key}")
+    if isinstance(value, list):
+        if len(value) < schema.get("minItems", 0):
+            raise ValueError(f"source-analysis.json field {path} has too few items")
+        if "maxItems" in schema and len(value) > schema["maxItems"]:
+            raise ValueError(f"source-analysis.json field {path} has too many items")
+        item_schema = schema.get("items")
+        if isinstance(item_schema, dict):
+            for index, child in enumerate(value):
+                _validate_source_schema(child, item_schema, f"{path}[{index}]")
+    if isinstance(value, str):
+        if len(value) < schema.get("minLength", 0):
+            raise ValueError(f"source-analysis.json field {path} is too short")
+        if "pattern" in schema and re.search(schema["pattern"], value) is None:
+            raise ValueError(f"source-analysis.json field {path} has an invalid format")
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        if value < schema.get("minimum", value):
+            raise ValueError(f"source-analysis.json field {path} is below its minimum")
+        if "exclusiveMinimum" in schema and value <= schema["exclusiveMinimum"]:
+            raise ValueError(
+                f"source-analysis.json field {path} is not above its exclusive minimum"
+            )
+
+
+def source_analysis_marker_from_json(text):
+    """Read provenance and coverage fields for privacy/freshness gates."""
+    try:
+        document = json.loads(text)
+    except json.JSONDecodeError as exc:
+        raise ValueError(
+            "source-analysis.json must be valid JSON: "
+            f"{exc.msg} at line {exc.lineno}, column {exc.colno}"
+        ) from exc
+    if not isinstance(document, dict):
+        raise ValueError("source-analysis.json must contain an object")
+    schema_path = Path(__file__).resolve().parents[1] / "schemas" / "source-analysis.schema.json"
+    try:
+        schema = json.loads(schema_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise ValueError("source-analysis schema is missing or invalid") from exc
+    _validate_source_schema(document, schema)
+    provider = require_nonempty_string(
+        document.get("provider"), "source-analysis.json provider"
+    )
+    digests = {}
+    for field in ("source_sha256", "project_sha256", "term_map_sha256"):
+        value = document.get(field)
+        if not isinstance(value, str) or not re.fullmatch(r"[0-9a-f]{64}", value):
+            raise ValueError(
+                f"source-analysis.json {field} must be a lowercase SHA-256 digest"
+            )
+        digests[field] = value
+    paragraphs = document.get("paragraphs")
+    if not isinstance(paragraphs, list):
+        raise ValueError("source-analysis.json paragraphs must be an array")
+    paragraph_ids = []
+    for index, paragraph in enumerate(paragraphs):
+        if not isinstance(paragraph, dict):
+            raise ValueError(
+                f"source-analysis.json paragraph {index + 1} must be an object"
+            )
+        paragraph_id = paragraph.get("paragraph_id")
+        if not isinstance(paragraph_id, str) or not re.fullmatch(r"L[1-9][0-9]*", paragraph_id):
+            raise ValueError(
+                f"source-analysis.json paragraph {index + 1} has an invalid paragraph_id"
+            )
+        paragraph_ids.append(paragraph_id)
+    if len(paragraph_ids) != len(set(paragraph_ids)):
+        raise ValueError("source-analysis.json paragraph_id values must be unique")
+    return SourceAnalysisMarker(
+        provider=provider,
+        source_sha256=digests["source_sha256"],
+        project_sha256=digests["project_sha256"],
+        term_map_sha256=digests["term_map_sha256"],
+        paragraph_ids=tuple(paragraph_ids),
+    )
 
 
 def _rendering_pattern(rendering):
@@ -666,6 +1015,51 @@ def check_headings(src, tgt):
         else "; ".join(
             f"L{i}: H{source_level or 0} vs H{target_level or 0}"
             for i, source_level, target_level in mismatches[:10]
+        ),
+        mismatches,
+    )
+
+
+def _normalized_title_line(line):
+    text = TITLE_MARKER_RE.sub("", line, count=1)
+    text = TITLE_NUMBER_RE.sub("", text, count=1)
+    return " ".join(text.split()).strip()
+
+
+def check_repeated_title_consistency(src, tgt):
+    """Require repeated TOC/body headings to keep one English rendering.
+
+    This deterministic check cannot judge whether a title is semantically
+    correct. It catches the narrower, auditable failure where the same source
+    title is translated differently between a TOC entry and its body heading.
+    """
+    if len(src) != len(tgt):
+        return FAIL, "cannot compare repeated titles while line counts differ", []
+    occurrences = {}
+    for line_number, (source_line, target_line) in enumerate(zip(src, tgt), 1):
+        if not (HEADING_RE.match(source_line) or TITLE_MARKER_RE.match(source_line)):
+            continue
+        source_title = _normalized_title_line(source_line)
+        if not source_title:
+            continue
+        occurrences.setdefault(source_title, []).append(
+            (line_number, _normalized_title_line(target_line))
+        )
+    mismatches = []
+    for entries in occurrences.values():
+        if len(entries) < 2:
+            continue
+        renderings = {rendering for _line, rendering in entries}
+        if len(renderings) > 1:
+            mismatches.append(entries)
+    return (
+        PASS if not mismatches else FAIL,
+        "all repeated TOC/body titles use one English rendering"
+        if not mismatches
+        else "inconsistent repeated title at "
+        + "; ".join(
+            ", ".join(f"L{line}" for line, _rendering in entries)
+            for entries in mismatches[:10]
         ),
         mismatches,
     )
@@ -1192,6 +1586,18 @@ def check_release_governance(project, findings, strict=False):
         failures.append(
             "strict publication mode requires release.level public or sensitive"
         )
+    if protected_release and (
+        not project.source_origin_declared or not project.delivery_format_declared
+    ):
+        missing_fields = []
+        if not project.source_origin_declared:
+            missing_fields.append("source_origin")
+        if not project.delivery_format_declared:
+            missing_fields.append("delivery_format")
+        failures.append(
+            "public/sensitive/scripture release must explicitly declare "
+            + " and ".join(missing_fields)
+        )
     if protected_release and not project.independent_review_required:
         failures.append(
             "public/sensitive/scripture release must require independent review"
@@ -1246,6 +1652,159 @@ def check_release_governance(project, findings, strict=False):
     return PASS, f"{project.level} release does not require independent approval", []
 
 
+def check_semantic_review(
+    project,
+    certificate,
+    source_sha256=None,
+    target_sha256=None,
+    findings_sha256=None,
+    findings=None,
+    strict=False,
+):
+    """Verify that the final semantic review applies to the current manuscript."""
+    required = bool(
+        strict and project is not None and project.level in {"public", "sensitive"}
+    )
+    if certificate is None:
+        if required:
+            return SKIP, "strict public/sensitive release requires semantic-review.json", []
+        return PASS, "final semantic-review certificate is not required in draft mode", []
+
+    failures = []
+    if source_sha256 is None or target_sha256 is None:
+        failures.append("cannot verify source/target hashes")
+    else:
+        if certificate.source_sha256 != source_sha256:
+            failures.append("source hash is stale")
+        if certificate.target_sha256 != target_sha256:
+            failures.append("target hash is stale")
+    if findings_sha256 is None:
+        failures.append("cannot verify findings hash without review-findings.jsonl")
+    elif certificate.findings_sha256 != findings_sha256:
+        failures.append("review findings hash is stale")
+
+    finding_by_id = {
+        finding["finding_id"]: finding for finding in (findings or [])
+    }
+    history_ids = tuple(
+        finding["finding_id"] for finding in (findings or [])
+    )
+    if certificate.finding_ids != history_ids:
+        failures.append(
+            "certificate finding_ids do not exactly match review-findings.jsonl "
+            "history order"
+        )
+    unresolved_ids = tuple(
+        finding["finding_id"]
+        for finding in (findings or [])
+        if finding.get("severity") in {"critical", "major"}
+        and finding.get("status") in {"open", "deferred"}
+    )
+    unresolved_count = len(unresolved_ids)
+    if certificate.blocking_findings != unresolved_count:
+        failures.append(
+            "blocking_findings does not match unresolved critical/major findings "
+            f"({certificate.blocking_findings} != {unresolved_count})"
+        )
+    if certificate.blocking_finding_ids != unresolved_ids:
+        failures.append(
+            "blocking_finding_ids do not exactly match unresolved critical/major "
+            "findings in review history"
+        )
+    if required and certificate.review_round < 2:
+        failures.append("final semantic review must be a post-polish rerun (round >= 2)")
+    if required and (
+        certificate.blocking_findings != 0 or certificate.status != "clear"
+    ):
+        failures.append("final semantic review still has release-blocking findings")
+
+    if failures:
+        return FAIL, "; ".join(failures), failures
+    if certificate.blocking_findings:
+        detail = (
+            f"round {certificate.review_round} has "
+            f"{certificate.blocking_findings} blocking finding(s)"
+        )
+        return WARN, detail, [detail]
+    return (
+        PASS,
+        f"round {certificate.review_round} hashes match current source, target, and findings",
+        [],
+    )
+
+
+def check_external_semantic_policy(
+    project,
+    certificate=None,
+    source_analysis=None,
+    review_findings=None,
+    source_sha256=None,
+    project_sha256=None,
+    term_map_sha256=None,
+    expected_paragraph_ids=(),
+    strict=False,
+):
+    """Enforce effective deny for sensitive or explicitly private projects."""
+    failures = []
+    required = bool(
+        strict and project is not None and project.level in {"public", "sensitive"}
+    )
+    if source_analysis is None and required:
+        return (
+            SKIP,
+            "strict public/sensitive release requires source-analysis.json",
+            [],
+        )
+    if source_analysis is not None and source_sha256 is not None:
+        if source_analysis.source_sha256 != source_sha256:
+            failures.append("source-analysis.json source hash is stale")
+        if (
+            project_sha256 is not None
+            and source_analysis.project_sha256 != project_sha256
+        ):
+            failures.append("source-analysis.json project hash is stale")
+        if (
+            term_map_sha256 is not None
+            and source_analysis.term_map_sha256 != term_map_sha256
+        ):
+            failures.append("source-analysis.json term-map hash is stale")
+        if expected_paragraph_ids and tuple(source_analysis.paragraph_ids) != tuple(
+            expected_paragraph_ids
+        ):
+            failures.append(
+                "source-analysis.json paragraph coverage/order does not match source.dj"
+            )
+    if project is None:
+        if failures:
+            return FAIL, "; ".join(failures), failures
+        return PASS, "no project-level external semantic review restriction", []
+
+    effective_deny = (
+        project.level == "sensitive" or project.external_semantic_review == "deny"
+    )
+    if effective_deny:
+        providers = []
+        if source_analysis is not None:
+            providers.append(("source-analysis.json", source_analysis.provider))
+        if certificate is not None:
+            providers.append(("semantic-review.json", certificate.provider))
+        for finding in review_findings or ():
+            provider = finding.get("provider")
+            if isinstance(provider, str) and provider.strip():
+                providers.append(("review-findings.jsonl", provider))
+        for artifact, provider in providers:
+            if provider.casefold() != "internal":
+                failures.append(
+                    f"{artifact} provider {provider!r} is external; internal is required"
+                )
+    if failures:
+        return FAIL, "; ".join(failures), failures
+    if effective_deny:
+        reason = "sensitive release" if project.level == "sensitive" else "project deny policy"
+        return PASS, f"external semantic processing disabled by {reason}", []
+    return PASS, "external semantic review is allowed for this project", []
+
+
 def check_bilingual(src, tgt, bilingual_path):
     if bilingual_path is None or not Path(bilingual_path).is_file():
         return SKIP, "no bilingual.dj present", []
@@ -1292,14 +1851,27 @@ def run_checks(
     allow_cjk=(),
     project=None,
     review_findings=None,
+    semantic_review=None,
+    source_analysis=None,
+    source_sha256=None,
+    target_sha256=None,
+    findings_sha256=None,
+    project_sha256=None,
+    term_map_sha256=None,
     strict=False,
 ):
+    expected_paragraph_ids = tuple(
+        f"L{index}"
+        for index, line in enumerate(src, start=1)
+        if not is_blank(line)
+    )
     return [
         ("non-empty inputs", *check_non_empty(src, tgt)),
         ("line-count parity", *check_line_count(src, tgt)),
         ("blank-line alignment", *check_blank_alignment(src, tgt)),
         ("paragraph parity", *check_paras(src, tgt)),
         ("heading parity", *check_headings(src, tgt)),
+        ("repeated title consistency", *check_repeated_title_consistency(src, tgt)),
         ("emphasis preservation", *check_emphasis(src, tgt)),
         ("comment parity", *check_comments(src, tgt)),
         ("CJK leakage", *check_cjk(tgt, allow_cjk)),
@@ -1311,6 +1883,32 @@ def run_checks(
         (
             "release governance",
             *check_release_governance(project, review_findings, strict=strict),
+        ),
+        (
+            "semantic review freshness",
+            *check_semantic_review(
+                project,
+                semantic_review,
+                source_sha256,
+                target_sha256,
+                findings_sha256,
+                review_findings,
+                strict,
+            ),
+        ),
+        (
+            "external semantic review policy",
+            *check_external_semantic_policy(
+                project,
+                semantic_review,
+                source_analysis,
+                review_findings,
+                source_sha256,
+                project_sha256,
+                term_map_sha256,
+                expected_paragraph_ids,
+                strict,
+            ),
         ),
     ]
 
@@ -1324,6 +1922,10 @@ def main():
                     help="translation-project.yaml release metadata")
     ap.add_argument("--review-findings", default=None,
                     help="review-findings.jsonl to verify")
+    ap.add_argument("--semantic-review", default=None,
+                    help="semantic-review.json final review certificate")
+    ap.add_argument("--source-analysis", default=None,
+                    help="source-analysis.json provenance record")
     ap.add_argument("--allow-cjk", default="", help="comma-separated CJK whitelist")
     ap.add_argument("--strict", action="store_true",
                     help=(
@@ -1346,6 +1948,10 @@ def main():
         ap.error(f"explicit project file does not exist: {args.project}")
     if args.review_findings is not None and not Path(args.review_findings).is_file():
         ap.error(f"explicit review findings do not exist: {args.review_findings}")
+    if args.semantic_review is not None and not Path(args.semantic_review).is_file():
+        ap.error(f"explicit semantic review does not exist: {args.semantic_review}")
+    if args.source_analysis is not None and not Path(args.source_analysis).is_file():
+        ap.error(f"explicit source analysis does not exist: {args.source_analysis}")
 
     if len(args.paths) == 1 and Path(args.paths[0]).is_dir():
         d = Path(args.paths[0])
@@ -1373,6 +1979,20 @@ def main():
             if (d / "review-findings.jsonl").is_file()
             else None
         )
+        semantic_review_path = (
+            Path(args.semantic_review)
+            if args.semantic_review
+            else d / "semantic-review.json"
+            if (d / "semantic-review.json").is_file()
+            else None
+        )
+        source_analysis_path = (
+            Path(args.source_analysis)
+            if args.source_analysis
+            else d / "source-analysis.json"
+            if (d / "source-analysis.json").is_file()
+            else None
+        )
         label = str(d)
     elif len(args.paths) == 2:
         src, tgt = Path(args.paths[0]), Path(args.paths[1])
@@ -1380,6 +2000,12 @@ def main():
         term_map = Path(args.term_map) if args.term_map else None
         project_path = Path(args.project) if args.project else None
         findings_path = Path(args.review_findings) if args.review_findings else None
+        semantic_review_path = (
+            Path(args.semantic_review) if args.semantic_review else None
+        )
+        source_analysis_path = (
+            Path(args.source_analysis) if args.source_analysis else None
+        )
         label = f"{src} -> {tgt}"
     else:
         ap.error("pass a book directory, or source.dj target.dj")
@@ -1395,22 +2021,32 @@ def main():
         protected_paths.append(Path(project_path))
     if findings_path is not None:
         protected_paths.append(Path(findings_path))
+    if semantic_review_path is not None:
+        protected_paths.append(Path(semantic_review_path))
+    if source_analysis_path is not None:
+        protected_paths.append(Path(source_analysis_path))
     if args.output is not None and any(
         paths_refer_to_same_file(args.output, protected)
         for protected in protected_paths
     ):
         ap.error(
             "--output must differ from source, target, bilingual, term map, "
-            "project, and review findings"
+            "project, review findings, semantic review, and source analysis"
         )
 
     src_lines = read_lines(src)
     tgt_lines = read_lines(tgt)
     allow = [t.strip() for t in args.allow_cjk.split(",") if t.strip()]
     terms = None
+    term_map_sha256 = None
     if term_map and Path(term_map).is_file():
         term_map_path = Path(term_map)
-        term_map_text = term_map_path.read_text(encoding="utf-8")
+        term_map_bytes = term_map_path.read_bytes()
+        term_map_sha256 = hashlib.sha256(term_map_bytes).hexdigest()
+        try:
+            term_map_text = term_map_bytes.decode("utf-8")
+        except UnicodeError as exc:
+            ap.error(f"term map is not valid UTF-8: {term_map_path}")
         if term_map_path.suffix.lower() in {".yaml", ".yml"}:
             try:
                 terms = term_policy_from_yaml_json(term_map_text)
@@ -1420,21 +2056,48 @@ def main():
             terms = term_map_from_markdown(term_map_text)
 
     project = None
+    project_sha256 = None
     if project_path is not None:
         try:
+            project_bytes = Path(project_path).read_bytes()
+            project_sha256 = hashlib.sha256(project_bytes).hexdigest()
             project = project_policy_from_yaml_json(
-                Path(project_path).read_text(encoding="utf-8")
+                project_bytes.decode("utf-8")
             )
-        except ValueError as exc:
+        except (UnicodeError, ValueError) as exc:
             ap.error(str(exc))
     findings = None
+    findings_sha256 = None
     if findings_path is not None:
         try:
+            findings_bytes = Path(findings_path).read_bytes()
+            findings_sha256 = hashlib.sha256(findings_bytes).hexdigest()
             findings = review_findings_from_jsonl(
-                Path(findings_path).read_text(encoding="utf-8")
+                findings_bytes.decode("utf-8")
+            )
+        except (UnicodeError, ValueError) as exc:
+            ap.error(str(exc))
+
+    semantic_review = None
+    if semantic_review_path is not None:
+        try:
+            semantic_review = semantic_review_from_json(
+                Path(semantic_review_path).read_text(encoding="utf-8")
             )
         except ValueError as exc:
             ap.error(str(exc))
+
+    source_analysis = None
+    if source_analysis_path is not None:
+        try:
+            source_analysis = source_analysis_marker_from_json(
+                Path(source_analysis_path).read_text(encoding="utf-8")
+            )
+        except ValueError as exc:
+            ap.error(str(exc))
+
+    source_sha256 = hashlib.sha256(src.read_bytes()).hexdigest()
+    target_sha256 = hashlib.sha256(tgt.read_bytes()).hexdigest()
 
     checks = run_checks(
         src_lines,
@@ -1444,6 +2107,13 @@ def main():
         allow,
         project,
         findings,
+        semantic_review,
+        source_analysis,
+        source_sha256,
+        target_sha256,
+        findings_sha256,
+        project_sha256,
+        term_map_sha256,
         args.strict,
     )
     failed = [name for name, status, *_ in checks if status == FAIL]

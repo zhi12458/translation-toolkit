@@ -9,10 +9,14 @@ exercise guide, or meditation-method explanation.
 
 ## 1. Person and subject (the single most-repeated issue)
 
-Chinese meditation prose drops subjects; English must not. The reviewer's #1
-fix was to **supply and keep a consistent person as subject** — almost always
-inclusive **"we"**, with **"you"** for direct step-by-step guidance. Two
-failures dominate:
+Chinese meditation prose often drops subjects, while complete English clauses
+usually need a grammatical subject. First identify the predicate's semantic
+roles and decide whether the practitioner is explicit or recoverable from the
+instructional context. In this particular reviewed manuscript, the human
+reviewer's #1 fix was to **supply and keep a consistent person as subject** —
+usually inclusive **"we"**, with **"you"** for direct step-by-step guidance.
+That manuscript-specific preference is not permission to invent an agent in an
+ambiguous source. Two failures dominated that review:
 
 - **Missing subject / missing verb.** A bare clause that reads as an imperative
   fragment where the source intended a statement.
@@ -23,11 +27,12 @@ failures dominate:
   experience) or "you" (guidance), never as "people," "one," or a dangling
   noun phrase.
 
-**Rule:** For every sentence, name the subject. Check the previous sentence's
-subject and keep the reference chain consistent (don't hop between "the
-practitioner," "we," "you," and an inanimate object). The reviewer repeatedly
-asked to change the subject *back* to a consistent person for reader
-engagement (参与感).
+**Rule:** For every sentence, identify the source predicate, participants, and
+reference chain before selecting an English grammatical subject. When the
+practice context clearly identifies the practitioner, keep the chosen person
+consistent (don't hop between "the practitioner," "we," "you," and an
+inanimate object). When the participant is genuinely ambiguous, restructure
+neutrally or refer it for human review instead of defaulting to “we.”
 
 Examples from the review:
 
@@ -46,7 +51,8 @@ be reproduced as a subjectless English sentence.
 ## 2. Split long sentences (one idea per breath)
 
 Chinese runs clauses together; the reviewer repeatedly split one long sentence
-into two or three, often introducing "we" as the subject of each.
+into two or three, often introducing "we" where the practice context licensed
+the practitioner as subject.
 
 | Before (literal) | After (reviewed) |
 |---|---|
@@ -159,8 +165,9 @@ translated book in the series. Check `references/translation-pitfalls.md` →
 
 ## Summary checklist for meditation-practice texts
 
-- [ ] Every sentence has an explicit, consistent person subject ("we"/"you"),
-      no abstract-third-person drift, no subjectless fragments.
+- [ ] Every predicate's participants are identified; the English has a clear,
+      context-supported subject and consistent person where the practice
+      context licenses "we"/"you", with no invented agent or dangling fragment.
 - [ ] Long sentences split into breath-length units.
 - [ ] No redundant filler ("especially," "basically," "essentially,"
       "particularly," "corresponding").

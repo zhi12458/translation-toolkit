@@ -3,6 +3,9 @@
   "title": "正念练习",
   "author": "MPI 示例",
   "translator": "示例翻译者",
+  "source_origin": "written_text",
+  "delivery_format": "publication_article",
+  "external_semantic_review": "allow",
   "genre": "written_article",
   "audience": "初次接触正念的一般英语读者",
   "register": {

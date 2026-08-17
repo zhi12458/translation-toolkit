@@ -10,6 +10,21 @@
     "title": {"type": "string", "minLength": 1},
     "author": {"type": "string", "minLength": 1},
     "translator": {"type": "string", "minLength": 1},
+    "source_origin": {
+      "enum": ["oral_talk", "written_text", "mixed", "unknown"],
+      "default": "unknown",
+      "description": "How the Chinese source originated; independent of its final delivery format."
+    },
+    "delivery_format": {
+      "enum": ["publication_article", "publication_book", "transcript", "subtitles", "audio_script", "guided_practice", "other"],
+      "default": "other",
+      "description": "The form in which the English translation will be delivered."
+    },
+    "external_semantic_review": {
+      "enum": ["allow", "deny"],
+      "default": "allow",
+      "description": "Whether source-meaning analysis and semantic review may be sent to external providers. Sensitive releases always behave as deny."
+    },
     "genre": {
       "enum": ["oral_talk", "written_article", "book", "guided_meditation", "qa", "scripture", "other"]
     },
@@ -96,5 +111,26 @@
         }
       }
     }
-  }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "delivery_format": {
+            "enum": ["publication_article", "publication_book"]
+          }
+        },
+        "required": ["delivery_format"]
+      },
+      "then": {
+        "properties": {
+          "register": {
+            "properties": {
+              "formality": {"not": {"const": "conversational"}}
+            }
+          }
+        }
+      }
+    }
+  ]
 }

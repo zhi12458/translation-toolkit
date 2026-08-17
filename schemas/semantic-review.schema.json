@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://codeberg.org/eastwind/translation-toolkit/raw/branch/main/schemas/semantic-review.schema.json",
+  "title": "Freshness certificate for an independent semantic review",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "stage",
+    "provider",
+    "model",
+    "source_sha256",
+    "target_sha256",
+    "review_round",
+    "blocking_findings",
+    "blocking_finding_ids",
+    "status",
+    "finding_ids",
+    "findings_sha256",
+    "generated_at",
+    "summary"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "stage": {"const": "semantic_review"},
+    "provider": {"type": "string", "minLength": 1},
+    "model": {"type": "string", "minLength": 1},
+    "source_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "target_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "review_round": {"type": "integer", "minimum": 1},
+    "blocking_findings": {"type": "integer", "minimum": 0},
+    "blocking_finding_ids": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1},
+      "description": "Every currently open/deferred critical or major finding in the merged history, in history order."
+    },
+    "status": {
+      "enum": ["clear", "blocking", "needs_human"],
+      "description": "clear when no blocker remains; blocking for the first consecutive blocking review cycle; needs_human when a consecutive blocking cycle remains after model revision."
+    },
+    "finding_ids": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1},
+      "description": "Every finding in the complete merged review history, in history order."
+    },
+    "findings_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "generated_at": {"type": "string", "format": "date-time"},
+    "summary": {"type": "string", "minLength": 1}
+  }
+}

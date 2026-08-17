@@ -16,5 +16,8 @@ From the toolkit root:
 ```
 
 `bilingual.dj` and `qa-report.json` are generated files. Remove them after the
-smoke test; do not use this fixture as a semantic Buddhist translation gold
-standard.
+smoke test. `source-analysis.json` and `semantic-review.json` are deterministic,
+human-authored internal fixtures with real hashes; neither claims an external
+model run. Do not use this small article as a semantic Buddhist translation gold
+standard; the public model-comparison cases live in
+`tests/fixtures/semantic-gold.json`.

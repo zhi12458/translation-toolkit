@@ -1,0 +1,445 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://codeberg.org/eastwind/translation-toolkit/raw/branch/main/schemas/source-analysis.schema.json",
+  "title": "MPI blind Chinese source semantic analysis",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "project",
+    "source_sha256",
+    "project_sha256",
+    "term_map_sha256",
+    "provider",
+    "model",
+    "configuration",
+    "generated_at",
+    "paragraphs"
+  ],
+  "properties": {
+    "schema_version": {"type": "integer", "const": 1},
+    "project": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "project_id",
+        "title",
+        "source_origin",
+        "delivery_format",
+        "external_semantic_review"
+      ],
+      "properties": {
+        "project_id": {"type": "string", "minLength": 1},
+        "title": {
+          "anyOf": [
+            {"type": "string", "minLength": 1},
+            {"type": "null"}
+          ]
+        },
+        "source_origin": {
+          "anyOf": [
+            {"type": "string", "minLength": 1},
+            {"type": "null"}
+          ]
+        },
+        "delivery_format": {
+          "anyOf": [
+            {"type": "string", "minLength": 1},
+            {"type": "null"}
+          ]
+        },
+        "external_semantic_review": {
+          "anyOf": [
+            {"type": "string", "enum": ["allow", "deny"]},
+            {"type": "null"}
+          ]
+        }
+      }
+    },
+    "source_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "project_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "term_map_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "provider": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Provider provenance, such as moonshot, qwencloud, or internal."
+    },
+    "model": {"type": "string", "minLength": 1},
+    "configuration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "base_url",
+        "reasoning_effort",
+        "response_format",
+        "strict",
+        "serial",
+        "batch_size",
+        "request_count",
+        "timeout_seconds",
+        "max_completion_tokens",
+        "rate_limit_tier",
+        "rate_limit_concurrency",
+        "rate_limit_rpm",
+        "rate_limit_tpm"
+      ],
+      "properties": {
+        "base_url": {"type": "string", "minLength": 1},
+        "reasoning_effort": {"type": "string", "enum": ["disabled", "high", "max"]},
+        "response_format": {"type": "string", "enum": ["json_schema", "json_object"]},
+        "strict": {"type": "boolean"},
+        "serial": {"type": "boolean", "const": true},
+        "batch_size": {"type": "integer", "minimum": 1},
+        "request_count": {"type": "integer", "minimum": 1},
+        "timeout_seconds": {"type": "number", "exclusiveMinimum": 0},
+        "max_completion_tokens": {
+          "description": "Requested completion cap, or null when the provider requires it to be omitted for structured output.",
+          "anyOf": [
+            {"type": "integer", "minimum": 1},
+            {"type": "null"}
+          ]
+        },
+        "rate_limit_tier": {
+          "description": "External-provider tier, or null for an internal analysis role.",
+          "anyOf": [
+            {"type": "string", "enum": ["Tier1"]},
+            {"type": "null"}
+          ]
+        },
+        "rate_limit_concurrency": {
+          "description": "Effective external-provider concurrency, or null for an internal role.",
+          "anyOf": [
+            {"type": "integer", "const": 1},
+            {"type": "null"}
+          ]
+        },
+        "rate_limit_rpm": {
+          "description": "External-provider requests-per-minute limit, or null for an internal role.",
+          "anyOf": [
+            {"type": "integer", "const": 200},
+            {"type": "null"}
+          ]
+        },
+        "rate_limit_tpm": {
+          "description": "External-provider tokens-per-minute limit, or null for an internal role.",
+          "anyOf": [
+            {"type": "integer", "const": 2000000},
+            {"type": "null"}
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"response_format": {"const": "json_schema"}}},
+          "then": {"properties": {"strict": {"const": true}}}
+        },
+        {
+          "if": {"properties": {"response_format": {"const": "json_object"}}},
+          "then": {"properties": {"strict": {"const": false}}}
+        }
+      ]
+    },
+    "generated_at": {"type": "string", "minLength": 1},
+    "paragraphs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "paragraph_id",
+          "predicates",
+          "relations",
+          "operators",
+          "references_and_ellipsis",
+          "competing_interpretations",
+          "must_preserve",
+          "must_not_invent",
+          "status"
+        ],
+        "properties": {
+          "paragraph_id": {"type": "string", "minLength": 1},
+          "predicates": {
+            "type": "array",
+            "maxItems": 8,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["predicate", "canonical_meaning", "evidence", "participants"],
+              "properties": {
+                "predicate": {"type": "string", "minLength": 1, "maxLength": 40},
+                "canonical_meaning": {"type": "string", "minLength": 1, "maxLength": 120},
+                "evidence": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 100,
+                  "description": "必须是当前段落中连续逐字出现的谓词证据，不得改写或概括。"
+                },
+                "participants": {
+                  "type": "array",
+                  "maxItems": 4,
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["role", "participant", "evidence", "evidence_status", "notes"],
+                    "properties": {
+                      "role": {
+                        "type": "string",
+                        "enum": [
+                          "agent",
+                          "experiencer",
+                          "patient",
+                          "theme",
+                          "beneficiary",
+                          "recipient",
+                          "instrument",
+                          "stimulus",
+                          "causer",
+                          "source",
+                          "goal",
+                          "location",
+                          "other"
+                        ]
+                      },
+                      "participant": {
+                        "description": "explicit 时必须是当前段落中连续逐字出现的短语；省略或不确定时填 null，依证据标 contextual_inference 或 ambiguous，不得填概括性人物。",
+                        "anyOf": [
+                          {"type": "string", "minLength": 1, "maxLength": 100},
+                          {"type": "null"}
+                        ]
+                      },
+                      "evidence": {
+                        "description": "连续逐字复制原文证据；explicit 时必须来自当前段落并包含 participant。",
+                        "anyOf": [
+                          {"type": "string", "minLength": 1, "maxLength": 100},
+                          {"type": "null"}
+                        ]
+                      },
+                      "evidence_status": {
+                        "type": "string",
+                        "enum": ["explicit", "contextual_inference", "ambiguous"],
+                        "description": "explicit 仅用于当前段落逐字明示的角色；承前主语用 contextual_inference；无法确定用 ambiguous。"
+                      },
+                      "notes": {"type": "string", "maxLength": 120}
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "relations": {
+            "type": "array",
+            "maxItems": 8,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "type",
+                "source_clause",
+                "target_clause",
+                "evidence",
+                "evidence_status",
+                "notes"
+              ],
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "purpose",
+                    "cause",
+                    "condition",
+                    "result",
+                    "contrast",
+                    "progression",
+                    "cost",
+                    "concession",
+                    "coordination",
+                    "temporal",
+                    "other"
+                  ]
+                },
+                "source_clause": {"type": "string", "minLength": 1, "maxLength": 120},
+                "target_clause": {"type": "string", "minLength": 1, "maxLength": 120},
+                "evidence": {
+                  "description": "非 null 时必须是当前段落中连续逐字出现的关系证据。",
+                  "anyOf": [
+                    {"type": "string", "minLength": 1, "maxLength": 160},
+                    {"type": "null"}
+                  ]
+                },
+                "evidence_status": {
+                  "type": "string",
+                  "enum": ["explicit", "contextual_inference", "ambiguous"]
+                },
+                "notes": {"type": "string", "maxLength": 120}
+              }
+            }
+          },
+          "operators": {
+            "type": "array",
+            "maxItems": 8,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "kind",
+                "marker",
+                "scope",
+                "interpretation",
+                "evidence_status",
+                "notes"
+              ],
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": ["tense", "aspect", "modality", "negation", "quantity", "degree", "other"]
+                },
+                "marker": {
+                  "description": "非 null 时必须是当前段落中连续逐字出现的作用域标记；无逐字标记时填 null，不得概括。",
+                  "anyOf": [
+                    {"type": "string", "minLength": 1, "maxLength": 40},
+                    {"type": "null"}
+                  ]
+                },
+                "scope": {"type": "string", "minLength": 1, "maxLength": 120},
+                "interpretation": {"type": "string", "minLength": 1, "maxLength": 120},
+                "evidence_status": {
+                  "type": "string",
+                  "enum": ["explicit", "contextual_inference", "ambiguous"]
+                },
+                "notes": {"type": "string", "maxLength": 120}
+              }
+            }
+          },
+          "references_and_ellipsis": {
+            "type": "array",
+            "maxItems": 8,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "kind",
+                "expression",
+                "predicate",
+                "role",
+                "referent",
+                "candidate_referents",
+                "evidence",
+                "evidence_status",
+                "notes"
+              ],
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": ["coreference", "omitted_subject", "omitted_object", "inherited_subject", "ambiguous_reference", "other"]
+                },
+                "expression": {
+                  "description": "非 null 时必须是当前段落中连续逐字出现的指代或省略表达。",
+                  "anyOf": [
+                    {"type": "string", "minLength": 1, "maxLength": 80},
+                    {"type": "null"}
+                  ]
+                },
+                "predicate": {
+                  "anyOf": [
+                    {"type": "string", "minLength": 1, "maxLength": 40},
+                    {"type": "null"}
+                  ]
+                },
+                "role": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "enum": [
+                        "agent",
+                        "experiencer",
+                        "patient",
+                        "theme",
+                        "beneficiary",
+                        "recipient",
+                        "instrument",
+                        "stimulus",
+                        "causer",
+                        "source",
+                        "goal",
+                        "location",
+                        "other"
+                      ]
+                    },
+                    {"type": "null"}
+                  ]
+                },
+                "referent": {
+                  "description": "若为 null，evidence_status 只能是 contextual_inference 或 ambiguous，绝不能是 explicit。",
+                  "anyOf": [
+                    {"type": "string", "minLength": 1, "maxLength": 120},
+                    {"type": "null"}
+                  ]
+                },
+                "candidate_referents": {
+                  "type": "array",
+                  "maxItems": 4,
+                  "items": {"type": "string", "minLength": 1, "maxLength": 120}
+                },
+                "evidence": {
+                  "description": "非 null 时必须是中文全文中连续逐字出现的指代证据。",
+                  "anyOf": [
+                    {"type": "string", "minLength": 1, "maxLength": 160},
+                    {"type": "null"}
+                  ]
+                },
+                "evidence_status": {
+                  "type": "string",
+                  "enum": ["explicit", "contextual_inference", "ambiguous"],
+                  "description": "explicit 要求 referent 非 null 且有逐字证据；null 只能标 contextual_inference 或 ambiguous。"
+                },
+                "notes": {"type": "string", "maxLength": 120}
+              }
+            }
+          },
+          "competing_interpretations": {
+            "type": "array",
+            "maxItems": 3,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "interpretation",
+                "supporting_evidence",
+                "counterevidence",
+                "evidence_status"
+              ],
+              "properties": {
+                "interpretation": {"type": "string", "minLength": 1, "maxLength": 160},
+                "supporting_evidence": {
+                  "type": "array",
+                  "maxItems": 4,
+                  "items": {"type": "string", "minLength": 1, "maxLength": 160}
+                },
+                "counterevidence": {
+                  "type": "array",
+                  "maxItems": 4,
+                  "items": {"type": "string", "minLength": 1, "maxLength": 160}
+                },
+                "evidence_status": {
+                  "type": "string",
+                  "enum": ["explicit", "contextual_inference", "ambiguous"]
+                }
+              }
+            }
+          },
+          "must_preserve": {
+            "type": "array",
+            "maxItems": 8,
+            "items": {"type": "string", "minLength": 1, "maxLength": 160}
+          },
+          "must_not_invent": {
+            "type": "array",
+            "maxItems": 8,
+            "items": {"type": "string", "minLength": 1, "maxLength": 160}
+          },
+          "status": {"type": "string", "enum": ["clear", "needs_human"]}
+        }
+      }
+    }
+  }
+}

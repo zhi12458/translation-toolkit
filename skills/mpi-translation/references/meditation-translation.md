@@ -18,14 +18,15 @@ well-established English conventions (yoga/meditation instructional voice).
 
 ### Person and subject (most-reviewed issue in this genre)
 
-Chinese meditation prose drops subjects; English must not. The human reviewer's
-#1 fix was to supply and keep a **consistent person as subject** — almost
-always "we" for shared experience, "you" for direct guidance — and never to
-drift into abstract third person ("people," "one") or leave a sentence
-subjectless. Every sentence needs a named subject, and the reference chain
-across sentences must stay consistent (don't hop between "we," "the
-practitioner," and an inanimate noun). For the full pattern library from a
-human-reviewed manuscript, read
+Chinese meditation prose often omits participants, while English normally
+needs a grammatical subject. Identify the predicate and semantic roles first.
+When the instructional context clearly identifies the practitioner, the human
+reviewer's preferred solution was a **consistent person as subject** — usually
+"we" for shared experience and "you" for direct guidance — without drifting
+into abstract third person or leaving fragments. If the participant is truly
+ambiguous, do not invent "we" merely to complete the clause; restructure
+neutrally or seek human judgment. Keep the reference chain consistent across
+sentences. For the full pattern library from a human-reviewed manuscript, read
 `../mpi-translation-review/references/meditation-practice-translation.md`.
 
 ## Terms

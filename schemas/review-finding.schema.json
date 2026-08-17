@@ -14,6 +14,11 @@
     "suggestion": {"type": "string"},
     "status": {"enum": ["open", "resolved", "rejected", "deferred"]},
     "reviewer": {"type": "string", "minLength": 1},
-    "resolution_note": {"type": "string"}
+    "resolution_note": {"type": "string"},
+    "stage": {"type": "string", "minLength": 1},
+    "provider": {"type": "string", "minLength": 1},
+    "model": {"type": "string", "minLength": 1},
+    "source_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "target_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
   }
 }
