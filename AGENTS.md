@@ -125,14 +125,16 @@ The enforced order is:
 3. Let DeepSeek V4 Flash `high` analyze only the frozen Chinese, project
    metadata, and term map through `deepseek-source-analysis.py`. It must not
    see or create `target.dj`.
-4. Let the active GPT-5.6-Sol `high` Codex agent write the English. It is the
-   only English wording authority. Freeze its draft as canonical `target.dj`
-   with `freeze-target.py`; do not let the orchestrator replace that validator.
+4. Let the active GPT-5.6-Sol `medium` Codex agent write the English. It is the
+   provisional default and the only English wording authority. Freeze its draft
+   as canonical `target.dj` with `freeze-target.py`; do not let the orchestrator
+   replace that validator.
 5. Generate `bilingual.dj` with `gen-bilingual.py`, then let DeepSeek V4 Pro
    `max` review Chinese and English without seeing the Flash analysis.
-6. Apply valid findings with Sol, regenerate `bilingual.dj`, and run Pro once
-   more. Stop for a human if the second review still has critical/major
-   blockers.
+6. Apply valid findings with Sol medium, regenerate `bilingual.dj`, and run Pro
+   once more. If the second review still has title or critical/major blockers,
+   Sol high may adjudicate only those findings. Stop for a human if any remain;
+   never use high for an unrequested whole-text retranslation.
 7. Run `check-translation.py --strict`; generate DOCX with `dj2docx.py` and
    verify both English and bilingual DOCX with `check-docx.py`; for media,
    generate and check subtitles with `gen-subtitles.py` and

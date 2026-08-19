@@ -83,11 +83,18 @@ def load_credential(environ: Mapping[str, str] | None = None) -> Credential:
 
 def build_request_payload(inputs, batch, schema_document: dict) -> dict:
     system_prompt, context_prompt, batch_prompt = shared.build_prompt(inputs, batch)
+    paragraph_ids = [paragraph.paragraph_id for paragraph in batch]
+    provider_schema = shared.build_provider_schema(schema_document, paragraph_ids)
+    schema_prompt = """必须严格按照下面的 JSON Schema 返回。顶层只能有 paragraphs，不能添加 analysis、summary、metadata、schema_version 或其他字段。
+<required-json-schema>
+""" + json.dumps(provider_schema, ensure_ascii=False, separators=(",", ":")) + """
+</required-json-schema>"""
     return {
         "model": MODEL,
         "messages": [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": context_prompt},
+            {"role": "user", "content": schema_prompt},
             {"role": "user", "content": batch_prompt},
         ],
         "stream": False,
