@@ -498,7 +498,12 @@ regenerating the same Python in execute_code each turn.
   override remains visible in the audited command receipt.
 - `toolkit/scripts/deepseek-source-analysis.py <project-dir>` — serial,
   checkpointed DeepSeek V4 Flash `high` blind analysis over toolkit-frozen
-  inputs; never reads `target.dj`.
+  inputs; never reads `target.dj`. For long documents each batch receives a
+  deterministic index of every nonblank Chinese paragraph, the exact requested
+  paragraphs plus three neighbouring paragraphs on each side, and only term
+  entries occurring in that exact window. Every frozen paragraph is still
+  analyzed across the serial run, and responses still pass the complete local
+  v3 schema and full-source evidence checks.
 - `toolkit/scripts/freeze-target.py <source.dj> <sol-draft.dj> --output
   <target.dj>` — validate line and blank-line alignment, then atomically freeze
   Sol's English as the canonical target.

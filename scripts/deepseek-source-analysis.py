@@ -31,6 +31,9 @@ DEFAULT_BATCH_SIZE = 4
 DEFAULT_TIMEOUT_SECONDS = 300.0
 DEFAULT_RETRIES = 2
 MAX_PROVIDER_RESPONSE_BYTES = 16 * 1024 * 1024
+CONTEXT_MODE = "complete-structure-index-plus-local-window"
+CONTEXT_WINDOW_PARAGRAPHS = 3
+OUTLINE_PREFIX_CHARACTERS = 40
 
 
 def _load_shared():
@@ -82,9 +85,16 @@ def load_credential(environ: Mapping[str, str] | None = None) -> Credential:
 
 
 def build_request_payload(inputs, batch, schema_document: dict) -> dict:
-    system_prompt, context_prompt, batch_prompt = shared.build_prompt(inputs, batch)
+    system_prompt, context_prompt, batch_prompt = shared.build_windowed_prompt(
+        inputs,
+        batch,
+        context_window_paragraphs=CONTEXT_WINDOW_PARAGRAPHS,
+        outline_prefix_characters=OUTLINE_PREFIX_CHARACTERS,
+    )
     paragraph_ids = [paragraph.paragraph_id for paragraph in batch]
-    provider_schema = shared.build_provider_schema(schema_document, paragraph_ids)
+    provider_schema = shared._compact_schema_for_prompt(
+        shared.build_provider_schema(schema_document, paragraph_ids)
+    )
     schema_prompt = """必须严格按照下面的 JSON Schema 返回。顶层只能有 paragraphs，不能添加 analysis、summary、metadata、schema_version 或其他字段。
 <required-json-schema>
 """ + json.dumps(provider_schema, ensure_ascii=False, separators=(",", ":")) + """
@@ -157,6 +167,9 @@ def configuration(batch_size: int, timeout: float) -> dict:
         "batch_size": batch_size,
         "timeout_seconds": timeout,
         "response_format": "json_object",
+        "context_mode": CONTEXT_MODE,
+        "context_window_paragraphs": CONTEXT_WINDOW_PARAGRAPHS,
+        "outline_prefix_characters": OUTLINE_PREFIX_CHARACTERS,
     }
 
 
@@ -191,6 +204,9 @@ def build_artifact(inputs, analyses: Sequence[dict], batch_size: int, timeout: f
             "rate_limit_concurrency": 1,
             "rate_limit_rpm": None,
             "rate_limit_tpm": None,
+            "context_mode": CONTEXT_MODE,
+            "context_window_paragraphs": CONTEXT_WINDOW_PARAGRAPHS,
+            "outline_prefix_characters": OUTLINE_PREFIX_CHARACTERS,
         },
         "generated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         "paragraphs": list(analyses),
