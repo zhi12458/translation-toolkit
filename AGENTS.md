@@ -505,12 +505,16 @@ regenerating the same Python in execute_code each turn.
   across the checkpointed serial run, and responses pass the complete local
   v3 schema and full-source evidence checks. To avoid unstable empty final
   responses from one oversized nested object, each batch uses four source-only
-  Flash `high` components: core predicates/relations, time/scope,
+  Flash `high` components: core predicates/relations, time, three bounded
+  operator groups (negation/modality, quantity/degree, tense/aspect/other),
   reference/elliptical subject, and allusions/constraints. Toolkit merges them
-  by paragraph ID and accepts only the complete v3 object. Each request reserves
+  by paragraph ID and accepts only the complete v3 object. Time and operator
+  components receive only the current paragraph; reference receives three
+  neighbours on each side. Each request reserves
   8192 completion tokens because thinking tokens and final JSON share the same
-  completion budget; an empty final `content` is never accepted and gets at
-  most five unchanged technical retries.
+  completion budget; an empty final `content` is never accepted. Each component
+  gets at most five unchanged technical retries without discarding other
+  components that already passed in the current batch.
 - `toolkit/scripts/freeze-target.py <source.dj> <sol-draft.dj> --output
   <target.dj>` — validate line and blank-line alignment, then atomically freeze
   Sol's English as the canonical target.

@@ -133,14 +133,44 @@
         },
         "context_window_paragraphs": {"type": "integer", "minimum": 0},
         "retry_limit": {"type": "integer", "minimum": 0},
-        "component_mode": {"type": "string", "enum": ["four-pass-merge"]},
+        "component_mode": {"type": "string", "enum": ["seven-pass-merge"]},
         "analysis_components": {
           "type": "array",
-          "minItems": 4,
-          "maxItems": 4,
+          "minItems": 7,
+          "maxItems": 7,
           "items": {
             "type": "string",
-            "enum": ["core", "scope", "reference", "constraints"]
+            "enum": [
+              "core",
+              "temporal",
+              "operator_negation_modality",
+              "operator_quantity_degree",
+              "operator_tense_aspect_other",
+              "reference",
+              "constraints"
+            ]
+          }
+        },
+        "component_context_windows": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "core",
+            "temporal",
+            "operator_negation_modality",
+            "operator_quantity_degree",
+            "operator_tense_aspect_other",
+            "reference",
+            "constraints"
+          ],
+          "properties": {
+            "core": {"type": "integer", "const": 1},
+            "temporal": {"type": "integer", "const": 0},
+            "operator_negation_modality": {"type": "integer", "const": 0},
+            "operator_quantity_degree": {"type": "integer", "const": 0},
+            "operator_tense_aspect_other": {"type": "integer", "const": 0},
+            "reference": {"type": "integer", "const": 3},
+            "constraints": {"type": "integer", "const": 0}
           }
         }
       },

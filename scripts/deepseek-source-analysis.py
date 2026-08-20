@@ -28,17 +28,20 @@ MODEL = "deepseek-v4-flash"
 PROVIDER = "deepseek"
 ENVIRONMENT_VARIABLE = "DEEPSEEK_API_KEY"
 KEYCHAIN_SERVICE = "mpi-deepseek-review"
-DEFAULT_BATCH_SIZE = 4
+DEFAULT_BATCH_SIZE = 2
 DEFAULT_TIMEOUT_SECONDS = 300.0
 DEFAULT_RETRIES = 5
 MAX_COMPLETION_TOKENS = 8192
 MAX_PROVIDER_RESPONSE_BYTES = 16 * 1024 * 1024
 CONTEXT_MODE = "serial-local-window-with-full-coverage"
 CONTEXT_WINDOW_PARAGRAPHS = 3
-COMPONENT_MODE = "four-pass-merge"
+COMPONENT_MODE = "seven-pass-merge"
 COMPONENT_FIELDS = {
     "core": ("predicates", "relations"),
-    "scope": ("temporal_relations", "operators"),
+    "temporal": ("temporal_relations",),
+    "operator_negation_modality": ("operators",),
+    "operator_quantity_degree": ("operators",),
+    "operator_tense_aspect_other": ("operators",),
     "reference": ("references_and_ellipsis", "elliptical_subject"),
     "constraints": (
         "cultural_allusions",
@@ -50,9 +53,26 @@ COMPONENT_FIELDS = {
 }
 COMPONENT_INSTRUCTIONS = {
     "core": """只生成 predicates 和 relations。选择最多八个最可能影响翻译的实义谓词，区分 agent、experiencer、patient、theme、cause、instrument、state_holder 等角色；原文未明示的参与者必须为 null，不能概括成人们或众生。关系证据必须逐字来自当前段落。""",
-    "scope": """只生成 temporal_relations 和 operators。逐项识别时间先后、时点、持续、完成、重复，以及时、后、才、已、仍、再等标记；同时分析否定、数量、程度、情态和体的作用域。marker 必须逐字来自当前段落。""",
+    "temporal": """只生成 temporal_relations。逐项识别时间先后、时点、持续、完成、重复，以及时、后、才、已、仍、再等标记。marker 必须逐字来自当前段落。""",
+    "operator_negation_modality": """只生成 operators，并且只记录 negation 或 modality。最多选择三个最可能影响英译的否定或情态作用域；marker 必须逐字来自当前段落。""",
+    "operator_quantity_degree": """只生成 operators，并且只记录 quantity 或 degree。最多选择三个最可能影响英译的数量或程度作用域；marker 必须逐字来自当前段落。""",
+    "operator_tense_aspect_other": """只生成 operators，并且只记录 tense、aspect 或 other。最多选择两个最可能影响英译的时态、体或其他作用域；marker 必须逐字来自当前段落。""",
     "reference": """只生成 references_and_ellipsis 和 elliptical_subject。分析指代、承前主语和省略；格言、文言压缩句、对仗句必须反问谁行动或承担状态，并分开 agent、state_holder、cause、instrument。智不住三有，悲不住涅槃中的修行者承担不住的状态，智慧与慈悲是原因或凭借，不能提升为英文主语。""",
     "constraints": """只生成 cultural_allusions、competing_interpretations、must_preserve、must_not_invent 和 status。must_preserve 必须逐字包含本段所有时间时体标记及每个 cultural_allusions.expression。成语、格言、经论引语、文言固定结构和历史指涉都必须列入 cultural_allusions，external_research_required 固定为 true。独善其身必须区分孟子语境的修养守志与后起的自私贬义。任何竞争解释未决时 status 为 needs_human。""",
+}
+COMPONENT_CONTEXT_WINDOWS = {
+    "core": 1,
+    "temporal": 0,
+    "operator_negation_modality": 0,
+    "operator_quantity_degree": 0,
+    "operator_tense_aspect_other": 0,
+    "reference": 3,
+    "constraints": 0,
+}
+OPERATOR_COMPONENT_RULES = {
+    "operator_negation_modality": (("negation", "modality"), 3),
+    "operator_quantity_degree": (("quantity", "degree"), 3),
+    "operator_tense_aspect_other": (("tense", "aspect", "other"), 2),
 }
 
 
@@ -124,6 +144,13 @@ def build_component_schema(
         "type": "string",
         "enum": list(paragraph_ids),
     }
+    if component in OPERATOR_COMPONENT_RULES:
+        allowed_kinds, maximum = OPERATOR_COMPONENT_RULES[component]
+        operator_schema = paragraph_schema["properties"]["operators"]
+        operator_schema["maxItems"] = maximum
+        operator_schema["items"]["properties"]["kind"]["enum"] = list(
+            allowed_kinds
+        )
     return shared._mfjs_wire_schema(
         {
             "type": "object",
@@ -140,7 +167,7 @@ def build_request_payload(inputs, batch, schema_document: dict, component: str) 
     _unused_system, context_prompt, batch_prompt = shared.build_windowed_prompt(
         inputs,
         batch,
-        context_window_paragraphs=CONTEXT_WINDOW_PARAGRAPHS,
+        context_window_paragraphs=COMPONENT_CONTEXT_WINDOWS[component],
     )
     paragraph_ids = [paragraph.paragraph_id for paragraph in batch]
     provider_schema = build_component_schema(schema_document, paragraph_ids, component)
@@ -263,21 +290,40 @@ def analyze_batch(
     schema_document: dict,
     credential: Credential,
     timeout: float,
+    retries: int,
 ) -> list[dict]:
     merged = {
         paragraph.paragraph_id: {"paragraph_id": paragraph.paragraph_id}
         for paragraph in batch
     }
     for component in COMPONENT_FIELDS:
-        content = request_component(
-            inputs, batch, schema_document, component, credential, timeout
-        )
-        partials = validate_component_content(
-            content, batch, schema_document, component
-        )
+        partials = None
+        last_error: AnalysisError | None = None
+        for attempt in range(retries + 1):
+            try:
+                content = request_component(
+                    inputs, batch, schema_document, component, credential, timeout
+                )
+                partials = validate_component_content(
+                    content, batch, schema_document, component
+                )
+                break
+            except AnalysisError as exc:
+                last_error = exc
+                if attempt < retries:
+                    time.sleep(min(60.0, 2.0**attempt))
+        if partials is None:
+            assert last_error is not None
+            raise AnalysisError(
+                f"DeepSeek source-analysis component {component} failed: {last_error}"
+            ) from last_error
         for partial in partials:
             paragraph_id = partial.pop("paragraph_id")
-            merged[paragraph_id].update(partial)
+            for field, value in partial.items():
+                if field in merged[paragraph_id] and isinstance(value, list):
+                    merged[paragraph_id][field].extend(value)
+                else:
+                    merged[paragraph_id][field] = value
     for analysis in merged.values():
         if _contains_ambiguous_status(analysis):
             analysis["status"] = "needs_human"
@@ -304,6 +350,7 @@ def configuration(batch_size: int, timeout: float, retries: int) -> dict:
         "context_window_paragraphs": CONTEXT_WINDOW_PARAGRAPHS,
         "component_mode": COMPONENT_MODE,
         "analysis_components": list(COMPONENT_FIELDS),
+        "component_context_windows": COMPONENT_CONTEXT_WINDOWS,
     }
 
 
@@ -346,6 +393,7 @@ def build_artifact(
             "context_window_paragraphs": CONTEXT_WINDOW_PARAGRAPHS,
             "component_mode": COMPONENT_MODE,
             "analysis_components": list(COMPONENT_FIELDS),
+            "component_context_windows": COMPONENT_CONTEXT_WINDOWS,
         },
         "generated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         "paragraphs": list(analyses),
@@ -405,21 +453,14 @@ def main(argv: Sequence[str] | None = None) -> int:
             checkpoint = json.loads(checkpoint_path.read_text(encoding="utf-8"))
             completed_batches = checkpoint["completed_batches"]
         for batch_number, batch in enumerate(batches[completed_count:], start=completed_count + 1):
-            validated = None
-            last_error: AnalysisError | None = None
-            for attempt in range(args.retries + 1):
-                try:
-                    validated = analyze_batch(
-                        inputs, batch, schema_document, credential, args.timeout
-                    )
-                    break
-                except AnalysisError as exc:
-                    last_error = exc
-                    if attempt < args.retries:
-                        time.sleep(min(60.0, 2.0**attempt))
-            if validated is None:
-                assert last_error is not None
-                raise last_error
+            validated = analyze_batch(
+                inputs,
+                batch,
+                schema_document,
+                credential,
+                args.timeout,
+                args.retries,
+            )
             analyses.extend(validated)
             completed_batches.append(
                 {"paragraph_ids": [item.paragraph_id for item in batch], "paragraphs": validated}

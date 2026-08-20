@@ -23,7 +23,7 @@ def test_json_mode_prompt_contains_exact_batch_schema_and_remains_blind(tmp_path
     inputs = MODULE.shared.load_project(project)
     schema = MODULE.shared.load_analysis_schema()
     batch = inputs.paragraphs[:1]
-    payload = MODULE.build_request_payload(inputs, batch, schema, "scope")
+    payload = MODULE.build_request_payload(inputs, batch, schema, "temporal")
     serialized = json.dumps(payload, ensure_ascii=False)
     schema_message = payload["messages"][2]["content"]
 
@@ -89,20 +89,20 @@ def test_long_document_prompt_uses_local_window_and_relevant_terms(tmp_path):
 
     inputs = MODULE.shared.load_project(project)
     schema = MODULE.shared.load_analysis_schema()
-    batch = (inputs.paragraphs[3],)
-    payload = MODULE.build_request_payload(inputs, batch, schema, "constraints")
+    batch = (inputs.paragraphs[2],)
+    payload = MODULE.build_request_payload(inputs, batch, schema, "core")
     serialized = json.dumps(payload, ensure_ascii=False)
     context = payload["messages"][1]["content"]
     schema_message = payload["messages"][2]["content"]
 
     assert "<complete-indexed-chinese-source>" in context
-    assert "[L4] 第三段是当前请求。" in context
+    assert "[L3] 第二段承接前文。" in context
     assert "遥远段落的开头" not in context
     assert distant_tail not in serialized
     assert '"source": "正念"' in context
     assert "SHOULD_NOT_APPEAR" not in serialized
     assert '"description"' in schema_message
-    assert payload["messages"][3]["content"].count("L4") == 1
+    assert payload["messages"][3]["content"].count("L3") == 1
 
 
 def test_deepseek_checkpoint_configuration_binds_window_strategy():
@@ -114,6 +114,7 @@ def test_deepseek_checkpoint_configuration_binds_window_strategy():
     assert config["retry_limit"] == 5
     assert config["component_mode"] == MODULE.COMPONENT_MODE
     assert config["analysis_components"] == list(MODULE.COMPONENT_FIELDS)
+    assert config["component_context_windows"] == MODULE.COMPONENT_CONTEXT_WINDOWS
 
 
 def test_component_validator_orders_coverage_and_rejects_unknown_fields(tmp_path):
@@ -127,13 +128,13 @@ def test_component_validator_orders_coverage_and_rejects_unknown_fields(tmp_path
     batch = inputs.paragraphs
     document = {
         "paragraphs": [
-            {"paragraph_id": paragraph.paragraph_id, "temporal_relations": [], "operators": []}
+            {"paragraph_id": paragraph.paragraph_id, "temporal_relations": []}
             for paragraph in reversed(batch)
         ]
     }
 
     validated = MODULE.validate_component_content(
-        json.dumps(document, ensure_ascii=False), batch, schema, "scope"
+        json.dumps(document, ensure_ascii=False), batch, schema, "temporal"
     )
 
     assert [item["paragraph_id"] for item in validated] == [
@@ -142,9 +143,57 @@ def test_component_validator_orders_coverage_and_rejects_unknown_fields(tmp_path
     document["paragraphs"][0]["unexpected"] = True
     try:
         MODULE.validate_component_content(
-            json.dumps(document, ensure_ascii=False), batch, schema, "scope"
+            json.dumps(document, ensure_ascii=False), batch, schema, "temporal"
         )
     except MODULE.AnalysisError:
         pass
     else:
         raise AssertionError("unknown component fields must be rejected")
+
+
+def test_component_retry_keeps_successful_components(monkeypatch, tmp_path):
+    project = tmp_path / "deepseek-component-retry"
+    project.mkdir()
+    example = ROOT / "examples" / "minimal-article"
+    for name in ("source.dj", "translation-project.yaml", "term-map.yaml"):
+        (project / name).write_bytes((example / name).read_bytes())
+    inputs = MODULE.shared.load_project(project)
+    schema = MODULE.shared.load_analysis_schema()
+    canonical = json.loads((example / "source-analysis.json").read_text(encoding="utf-8"))[
+        "paragraphs"
+    ]
+    calls = {component: 0 for component in MODULE.COMPONENT_FIELDS}
+
+    def fake_request(_inputs, _batch, _schema, component, _credential, _timeout):
+        calls[component] += 1
+        if component == "temporal" and calls[component] == 1:
+            raise MODULE.AnalysisError("synthetic empty response")
+        fields = MODULE.COMPONENT_FIELDS[component]
+        paragraphs = []
+        allowed = MODULE.OPERATOR_COMPONENT_RULES.get(component, ((), 0))[0]
+        for source in canonical:
+            item = {"paragraph_id": source["paragraph_id"]}
+            for field in fields:
+                value = source[field]
+                if field == "operators":
+                    value = [entry for entry in value if entry["kind"] in allowed]
+                item[field] = value
+            paragraphs.append(item)
+        return json.dumps({"paragraphs": paragraphs}, ensure_ascii=False)
+
+    monkeypatch.setattr(MODULE, "request_component", fake_request)
+    monkeypatch.setattr(MODULE.time, "sleep", lambda _seconds: None)
+    analyses = MODULE.analyze_batch(
+        inputs,
+        inputs.paragraphs,
+        schema,
+        MODULE.Credential("not-used", "test"),
+        30.0,
+        1,
+    )
+
+    assert len(analyses) == len(inputs.paragraphs)
+    assert calls["temporal"] == 2
+    assert all(
+        count == 1 for component, count in calls.items() if component != "temporal"
+    )
