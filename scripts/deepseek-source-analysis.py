@@ -12,6 +12,8 @@ import json
 import math
 import os
 from pathlib import Path
+import socket
+import ssl
 import subprocess
 import sys
 import time
@@ -31,6 +33,7 @@ KEYCHAIN_SERVICE = "mpi-deepseek-review"
 DEFAULT_BATCH_SIZE = 2
 DEFAULT_TIMEOUT_SECONDS = 300.0
 DEFAULT_RETRIES = 5
+TRANSIENT_BATCH_RETRY_LIMIT = 2
 MAX_COMPLETION_TOKENS = 8192
 MAX_PROVIDER_RESPONSE_BYTES = 16 * 1024 * 1024
 CONTEXT_MODE = "serial-local-window-with-full-coverage"
@@ -38,6 +41,7 @@ CONTEXT_WINDOW_PARAGRAPHS = 3
 COMPONENT_MODE = "seven-pass-merge"
 COMPONENT_FALLBACK_MODE = "single-paragraph-after-batch-retries"
 COMPLETION_RECOVERY_MODE = "omit-max-completion-tokens-after-empty-or-length"
+TRANSIENT_BATCH_RECOVERY_MODE = "retry-same-batch-after-exhausted-transient-component"
 COMPONENT_FIELDS = {
     "core": ("predicates", "relations"),
     "temporal": ("temporal_relations",),
@@ -93,12 +97,55 @@ AnalysisError = shared.AnalysisError
 Credential = shared.Credential
 
 
-class DeepSeekRateLimitError(AnalysisError):
+class DeepSeekTransientError(AnalysisError):
+    """A provider failure that is safe to retry without changing semantics."""
+
+    diagnostic_code = "deepseek_transient_failure"
+
+    def __init__(self, message: str, **metadata: object):
+        super().__init__(message)
+        self.diagnostic_metadata = metadata
+
+
+class DeepSeekRateLimitError(DeepSeekTransientError):
     """Safe DeepSeek 429 signal without a provider response body."""
 
+    diagnostic_code = "deepseek_rate_limit"
 
-class DeepSeekCompletionRecoveryError(AnalysisError):
+
+class DeepSeekTransportError(DeepSeekTransientError):
+    """Safe transport failure without a provider response body."""
+
+    diagnostic_code = "deepseek_transport_failure"
+
+
+class DeepSeekCompletionRecoveryError(DeepSeekTransientError):
     """A response that may recover when the explicit completion cap is omitted."""
+
+    diagnostic_code = "deepseek_completion_recovery"
+
+
+class DeepSeekHTTPError(DeepSeekTransientError):
+    """A retryable HTTP status without a provider response body."""
+
+    diagnostic_code = "deepseek_http_transient"
+
+
+class ComponentAnalysisError(AnalysisError):
+    """Adds safe component context while preserving the original cause chain."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        component: str,
+        paragraph_id: str | None = None,
+        fallback: str | None = None,
+    ):
+        super().__init__(message)
+        self.component = component
+        self.paragraph_id = paragraph_id
+        self.fallback = fallback
 
 
 class RejectRedirectHandler(urllib.request.HTTPRedirectHandler):
@@ -248,9 +295,28 @@ def request_component(
     except urllib.error.HTTPError as exc:
         if exc.code == 429:
             raise DeepSeekRateLimitError("DeepSeek API rate limit reached") from exc
+        if exc.code in {408, 409, 425} or 500 <= exc.code <= 599:
+            raise DeepSeekHTTPError(
+                f"DeepSeek API request failed with HTTP {exc.code}",
+                http_status=exc.code,
+            ) from exc
         raise AnalysisError(f"DeepSeek API request failed with HTTP {exc.code}") from exc
     except (urllib.error.URLError, TimeoutError, OSError) as exc:
-        raise AnalysisError("DeepSeek API request failed") from exc
+        reason = exc.reason if isinstance(exc, urllib.error.URLError) else exc
+        if isinstance(reason, (TimeoutError, socket.timeout)):
+            transport_kind = "timeout"
+        elif isinstance(reason, ssl.SSLError):
+            transport_kind = "tls"
+        elif isinstance(
+            reason,
+            (ConnectionAbortedError, ConnectionRefusedError, ConnectionResetError),
+        ):
+            transport_kind = "connection"
+        else:
+            transport_kind = "network"
+        raise DeepSeekTransportError(
+            "DeepSeek API request failed", transport_kind=transport_kind
+        ) from exc
     if len(raw) > MAX_PROVIDER_RESPONSE_BYTES:
         raise AnalysisError("DeepSeek API response exceeded the safe size limit")
     try:
@@ -281,15 +347,67 @@ def request_component(
     )
     if finish_reason == "length":
         raise DeepSeekCompletionRecoveryError(
-            f"DeepSeek API reached the completion limit ({completion_metadata})"
+            f"DeepSeek API reached the completion limit ({completion_metadata})",
+            finish_reason="length",
+            reasoning_bytes=reasoning_bytes,
+            completion_tokens=completion_tokens,
         )
     if finish_reason != "stop":
         raise AnalysisError("DeepSeek API did not finish with stop")
     if not isinstance(content, str) or not content.strip():
         raise DeepSeekCompletionRecoveryError(
-            f"DeepSeek API returned empty structured content ({completion_metadata})"
+            f"DeepSeek API returned empty structured content ({completion_metadata})",
+            finish_reason=finish_reason,
+            reasoning_bytes=reasoning_bytes,
+            completion_tokens=completion_tokens,
         )
     return content
+
+
+def _walk_error_chain(exc: BaseException):
+    seen: set[int] = set()
+    current: BaseException | None = exc
+    while current is not None and id(current) not in seen:
+        seen.add(id(current))
+        yield current
+        current = current.__cause__ or current.__context__
+
+
+def transient_cause(exc: BaseException) -> DeepSeekTransientError | None:
+    for item in _walk_error_chain(exc):
+        if isinstance(item, DeepSeekTransientError):
+            return item
+    return None
+
+
+def safe_diagnostic(exc: BaseException) -> dict | None:
+    transient = transient_cause(exc)
+    if transient is None:
+        return None
+    diagnostic: dict[str, object] = {
+        "schema_version": 1,
+        "code": transient.diagnostic_code,
+        "retryable": True,
+    }
+    for item in _walk_error_chain(exc):
+        if isinstance(item, ComponentAnalysisError):
+            diagnostic["component"] = item.component
+            if item.paragraph_id is not None:
+                diagnostic["paragraph_id"] = item.paragraph_id
+            if item.fallback is not None:
+                diagnostic["fallback"] = item.fallback
+            break
+    for key in (
+        "transport_kind",
+        "http_status",
+        "finish_reason",
+        "reasoning_bytes",
+        "completion_tokens",
+    ):
+        value = transient.diagnostic_metadata.get(key)
+        if isinstance(value, (str, int)) and not isinstance(value, bool):
+            diagnostic[key] = value
+    return diagnostic
 
 
 def validate_component_content(
@@ -352,8 +470,9 @@ def analyze_batch(
             )
         except AnalysisError as batch_error:
             if len(batch) == 1:
-                raise AnalysisError(
-                    f"DeepSeek source-analysis component {component} failed: {batch_error}"
+                raise ComponentAnalysisError(
+                    f"DeepSeek source-analysis component {component} failed: {batch_error}",
+                    component=component,
                 ) from batch_error
             partials = []
             for paragraph in batch:
@@ -371,10 +490,13 @@ def analyze_batch(
                         )
                     )
                 except AnalysisError as single_error:
-                    raise AnalysisError(
+                    raise ComponentAnalysisError(
                         "DeepSeek source-analysis component "
                         f"{component} single-paragraph fallback {paragraph.paragraph_id} "
-                        f"failed: {single_error}"
+                        f"failed: {single_error}",
+                        component=component,
+                        paragraph_id=paragraph.paragraph_id,
+                        fallback="single-paragraph",
                     ) from single_error
         for partial in partials:
             paragraph_id = partial.pop("paragraph_id")
@@ -439,6 +561,37 @@ def request_validated_component(
     raise last_error
 
 
+def analyze_batch_with_transient_recovery(
+    inputs,
+    batch,
+    schema_document: dict,
+    credential: Credential,
+    timeout: float,
+    retries: int,
+    *,
+    transient_batch_retry_limit: int = TRANSIENT_BATCH_RETRY_LIMIT,
+) -> list[dict]:
+    """Retry the unchanged batch only after an exhausted transient failure."""
+    for attempt in range(transient_batch_retry_limit + 1):
+        try:
+            return analyze_batch(
+                inputs, batch, schema_document, credential, timeout, retries
+            )
+        except AnalysisError as exc:
+            diagnostic = safe_diagnostic(exc)
+            if diagnostic is None or attempt >= transient_batch_retry_limit:
+                raise
+            paragraph_ids = ",".join(item.paragraph_id for item in batch)
+            print(
+                "DeepSeek transient batch recovery: retrying unchanged batch "
+                f"[{paragraph_ids}] after {diagnostic['code']} "
+                f"({attempt + 1}/{transient_batch_retry_limit}).",
+                flush=True,
+            )
+            time.sleep(min(60.0, 10.0 * (2**attempt)))
+    raise AssertionError("unreachable transient batch recovery state")
+
+
 def configuration(batch_size: int, timeout: float, retries: int) -> dict:
     return {
         "provider": PROVIDER,
@@ -500,6 +653,8 @@ def build_artifact(
             "component_mode": COMPONENT_MODE,
             "component_fallback_mode": COMPONENT_FALLBACK_MODE,
             "completion_recovery_mode": COMPLETION_RECOVERY_MODE,
+            "transient_batch_recovery_mode": TRANSIENT_BATCH_RECOVERY_MODE,
+            "transient_batch_retry_limit": TRANSIENT_BATCH_RETRY_LIMIT,
             "analysis_components": list(COMPONENT_FIELDS),
             "component_context_windows": COMPONENT_CONTEXT_WINDOWS,
         },
@@ -561,7 +716,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             checkpoint = json.loads(checkpoint_path.read_text(encoding="utf-8"))
             completed_batches = checkpoint["completed_batches"]
         for batch_number, batch in enumerate(batches[completed_count:], start=completed_count + 1):
-            validated = analyze_batch(
+            validated = analyze_batch_with_transient_recovery(
                 inputs,
                 batch,
                 schema_document,
@@ -585,6 +740,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         shared.atomic_write_json(Path(output), artifact, schema_document)
         checkpoint_path.unlink(missing_ok=True)
     except AnalysisError as exc:
+        diagnostic = safe_diagnostic(exc)
+        if diagnostic is not None:
+            print(
+                "diagnostic-json:"
+                + json.dumps(diagnostic, ensure_ascii=True, separators=(",", ":")),
+                file=sys.stderr,
+            )
         print(f"error: {exc}", file=sys.stderr)
         return 1
     print(f"Wrote {len(analyses)} validated DeepSeek analyses to {Path(output).resolve()}.")

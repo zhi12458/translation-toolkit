@@ -115,8 +115,32 @@ def test_deepseek_checkpoint_configuration_binds_window_strategy():
     assert config["component_mode"] == MODULE.COMPONENT_MODE
     assert config["component_fallback_mode"] == MODULE.COMPONENT_FALLBACK_MODE
     assert config["completion_recovery_mode"] == MODULE.COMPLETION_RECOVERY_MODE
+    assert "transient_batch_recovery_mode" not in config
+    assert "transient_batch_retry_limit" not in config
     assert config["analysis_components"] == list(MODULE.COMPONENT_FIELDS)
     assert config["component_context_windows"] == MODULE.COMPONENT_CONTEXT_WINDOWS
+
+
+def test_final_artifact_records_transient_batch_recovery(tmp_path):
+    project = tmp_path / "deepseek-artifact-recovery"
+    project.mkdir()
+    example = ROOT / "examples" / "minimal-article"
+    for name in ("source.dj", "translation-project.yaml", "term-map.yaml"):
+        (project / name).write_bytes((example / name).read_bytes())
+    inputs = MODULE.shared.load_project(project)
+    analyses = json.loads(
+        (example / "source-analysis.json").read_text(encoding="utf-8")
+    )["paragraphs"]
+
+    artifact = MODULE.build_artifact(inputs, analyses, 2, 300.0, 5)
+    config = artifact["configuration"]
+
+    assert config["transient_batch_recovery_mode"] == (
+        MODULE.TRANSIENT_BATCH_RECOVERY_MODE
+    )
+    assert config["transient_batch_retry_limit"] == (
+        MODULE.TRANSIENT_BATCH_RETRY_LIMIT
+    )
 
 
 def test_component_validator_orders_coverage_and_rejects_unknown_fields(tmp_path):
@@ -343,3 +367,60 @@ def test_payload_omits_max_tokens_only_for_completion_recovery(tmp_path):
 
     assert primary["max_tokens"] == MODULE.MAX_COMPLETION_TOKENS
     assert "max_tokens" not in recovery
+
+
+def test_transient_batch_recovery_retries_unchanged_batch(tmp_path, monkeypatch):
+    project = tmp_path / "deepseek-transient-batch-recovery"
+    project.mkdir()
+    example = ROOT / "examples" / "minimal-article"
+    for name in ("source.dj", "translation-project.yaml", "term-map.yaml"):
+        (project / name).write_bytes((example / name).read_bytes())
+    inputs = MODULE.shared.load_project(project)
+    schema = MODULE.shared.load_analysis_schema()
+    batch = inputs.paragraphs[:1]
+    calls = []
+    sleeps = []
+    errors = []
+
+    def fake_analyze(*args):
+        calls.append(args[1])
+        if len(calls) == 1:
+            transport = MODULE.DeepSeekTransportError(
+                "DeepSeek API request failed", transport_kind="timeout"
+            )
+            wrapped = MODULE.ComponentAnalysisError(
+                "safe wrapper",
+                component="reference",
+                paragraph_id=batch[0].paragraph_id,
+                fallback="single-paragraph",
+            )
+            wrapped.__cause__ = transport
+            errors.append(wrapped)
+            raise wrapped
+        return [{"paragraph_id": batch[0].paragraph_id}]
+
+    monkeypatch.setattr(MODULE, "analyze_batch", fake_analyze)
+    monkeypatch.setattr(MODULE.time, "sleep", sleeps.append)
+    result = MODULE.analyze_batch_with_transient_recovery(
+        inputs,
+        batch,
+        schema,
+        MODULE.Credential("not-used", "test"),
+        30.0,
+        1,
+        transient_batch_retry_limit=2,
+    )
+
+    assert result == [{"paragraph_id": batch[0].paragraph_id}]
+    assert calls == [batch, batch]
+    assert sleeps == [10.0]
+    diagnostic = MODULE.safe_diagnostic(errors[0])
+    assert diagnostic == {
+        "schema_version": 1,
+        "code": "deepseek_transport_failure",
+        "retryable": True,
+        "component": "reference",
+        "paragraph_id": batch[0].paragraph_id,
+        "fallback": "single-paragraph",
+        "transport_kind": "timeout",
+    }
