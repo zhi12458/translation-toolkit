@@ -118,6 +118,7 @@ def test_deepseek_checkpoint_configuration_binds_window_strategy():
     assert "transient_batch_recovery_mode" not in config
     assert "transient_batch_retry_limit" not in config
     assert "cross_component_reconciliation_mode" not in config
+    assert "component_evidence_prevalidation_mode" not in config
     assert config["analysis_components"] == list(MODULE.COMPONENT_FIELDS)
     assert config["component_context_windows"] == MODULE.COMPONENT_CONTEXT_WINDOWS
 
@@ -144,6 +145,9 @@ def test_final_artifact_records_transient_batch_recovery(tmp_path):
     )
     assert config["cross_component_reconciliation_mode"] == (
         MODULE.CROSS_COMPONENT_RECONCILIATION_MODE
+    )
+    assert config["component_evidence_prevalidation_mode"] == (
+        MODULE.COMPONENT_EVIDENCE_PREVALIDATION_MODE
     )
     MODULE.shared._validate_instance(
         artifact, MODULE.shared.load_analysis_schema()
@@ -299,7 +303,11 @@ def test_component_validator_orders_coverage_and_rejects_unknown_fields(tmp_path
     }
 
     validated = MODULE.validate_component_content(
-        json.dumps(document, ensure_ascii=False), batch, schema, "temporal"
+        json.dumps(document, ensure_ascii=False),
+        batch,
+        schema,
+        "temporal",
+        inputs.source,
     )
 
     assert [item["paragraph_id"] for item in validated] == [
@@ -308,12 +316,76 @@ def test_component_validator_orders_coverage_and_rejects_unknown_fields(tmp_path
     document["paragraphs"][0]["unexpected"] = True
     try:
         MODULE.validate_component_content(
-            json.dumps(document, ensure_ascii=False), batch, schema, "temporal"
+            json.dumps(document, ensure_ascii=False),
+            batch,
+            schema,
+            "temporal",
+            inputs.source,
         )
     except MODULE.AnalysisError:
         pass
     else:
         raise AssertionError("unknown component fields must be rejected")
+
+
+def test_nonverbatim_constraints_evidence_retries_same_component(
+    tmp_path, monkeypatch
+):
+    project = tmp_path / "deepseek-constraints-evidence-retry"
+    project.mkdir()
+    example = ROOT / "examples" / "minimal-article"
+    for name in ("translation-project.yaml", "term-map.yaml"):
+        (project / name).write_bytes((example / name).read_bytes())
+    (project / "source.dj").write_text(
+        "条件具足，才会结果。\n", encoding="utf-8"
+    )
+    inputs = MODULE.shared.load_project(project)
+    schema = MODULE.shared.load_analysis_schema()
+    batch = inputs.paragraphs
+    attempts = []
+
+    def fake_request(*args):
+        attempts.append(args[-1])
+        evidence = "概括条件" if len(attempts) == 1 else "条件具足"
+        return json.dumps(
+            {
+                "paragraphs": [
+                    {
+                        "paragraph_id": batch[0].paragraph_id,
+                        "cultural_allusions": [],
+                        "competing_interpretations": [
+                            {
+                                "interpretation": "条件是结果出现的前提",
+                                "supporting_evidence": [evidence],
+                                "counterevidence": [],
+                                "evidence_status": "explicit",
+                            }
+                        ],
+                        "must_preserve": ["保留条件关系"],
+                        "must_not_invent": ["不得增加新条件"],
+                        "status": "clear",
+                    }
+                ]
+            },
+            ensure_ascii=False,
+        )
+
+    monkeypatch.setattr(MODULE, "request_component", fake_request)
+    monkeypatch.setattr(MODULE.time, "sleep", lambda _seconds: None)
+    partials = MODULE.request_validated_component(
+        inputs,
+        batch,
+        schema,
+        "constraints",
+        MODULE.Credential("not-used", "test"),
+        30.0,
+        1,
+    )
+
+    assert len(attempts) == 2
+    assert partials[0]["competing_interpretations"][0]["supporting_evidence"] == [
+        "条件具足"
+    ]
 
 
 def test_component_retry_keeps_successful_components(monkeypatch, tmp_path):

@@ -528,6 +528,11 @@ regenerating the same Python in execute_code each turn.
   a non-retryable diagnostic containing only a fixed error code, paragraph ID,
   schema field path, and allowlisted category. Source text, evidence values,
   provider bodies, and reasoning remain excluded.
+  Before any generated component is accepted, its designated source-evidence
+  fields are also checked for verbatim occurrence in the current paragraph or
+  frozen complete source, as appropriate. Invalid evidence rejects only that
+  component and uses the existing bounded same-model, same-input, same-schema
+  component retry; the complete v3 validator remains the final gate.
 - `toolkit/scripts/freeze-target.py <source.dj> <sol-draft.dj> --output
   <target.dj>` — validate line and blank-line alignment, then atomically freeze
   Sol's English as the canonical target.

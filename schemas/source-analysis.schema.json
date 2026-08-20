@@ -154,6 +154,10 @@
           "type": "string",
           "enum": ["union-validated-temporal-markers-into-must-preserve"]
         },
+        "component_evidence_prevalidation_mode": {
+          "type": "string",
+          "enum": ["verbatim-source-evidence-before-component-acceptance"]
+        },
         "analysis_components": {
           "type": "array",
           "minItems": 7,

@@ -46,6 +46,9 @@ TRANSIENT_BATCH_RECOVERY_MODE = "retry-same-batch-after-exhausted-transient-comp
 CROSS_COMPONENT_RECONCILIATION_MODE = (
     "union-validated-temporal-markers-into-must-preserve"
 )
+COMPONENT_EVIDENCE_PREVALIDATION_MODE = (
+    "verbatim-source-evidence-before-component-acceptance"
+)
 COMPONENT_FIELDS = {
     "core": ("predicates", "relations"),
     "temporal": ("temporal_relations",),
@@ -484,6 +487,7 @@ def validate_component_content(
     batch,
     schema_document: dict,
     component: str,
+    complete_source: str,
 ) -> list[dict]:
     try:
         document = json.loads(content)
@@ -501,7 +505,127 @@ def validate_component_content(
             "DeepSeek source-analysis component has invalid paragraph coverage"
         )
     by_id = {paragraph["paragraph_id"]: paragraph for paragraph in paragraphs}
-    return [by_id[paragraph_id] for paragraph_id in expected_ids]
+    ordered = [by_id[paragraph_id] for paragraph_id in expected_ids]
+    for paragraph, partial in zip(batch, ordered, strict=True):
+        validate_component_source_evidence(
+            partial, paragraph.text, complete_source, component
+        )
+    return ordered
+
+
+def validate_component_source_evidence(
+    partial: dict,
+    paragraph_text: str,
+    complete_source: str,
+    component: str,
+) -> None:
+    """Reject nonverbatim evidence before accepting a generated component."""
+    path = f"$.paragraphs[{partial['paragraph_id']}]"
+    if component == "core":
+        for predicate_index, predicate in enumerate(partial["predicates"]):
+            predicate_path = f"{path}.predicates[{predicate_index}]"
+            shared._require_source_evidence(
+                predicate["evidence"], paragraph_text, f"{predicate_path}.evidence"
+            )
+            for role_index, participant in enumerate(predicate["participants"]):
+                role_path = f"{predicate_path}.participants[{role_index}]"
+                source = (
+                    paragraph_text
+                    if participant["evidence_status"] == "explicit"
+                    else complete_source
+                )
+                shared._require_source_evidence(
+                    participant["evidence"], source, f"{role_path}.evidence"
+                )
+                if participant["evidence_status"] == "explicit":
+                    shared._require_source_evidence(
+                        participant["participant"],
+                        paragraph_text,
+                        f"{role_path}.participant",
+                    )
+        for relation_index, relation in enumerate(partial["relations"]):
+            shared._require_source_evidence(
+                relation["evidence"],
+                paragraph_text,
+                f"{path}.relations[{relation_index}].evidence",
+            )
+        return
+    if component == "temporal":
+        for index, relation in enumerate(partial["temporal_relations"]):
+            shared._require_source_evidence(
+                relation["marker"],
+                paragraph_text,
+                f"{path}.temporal_relations[{index}].marker",
+            )
+        return
+    if component.startswith("operator_"):
+        for index, operator in enumerate(partial["operators"]):
+            shared._require_source_evidence(
+                operator["marker"],
+                paragraph_text,
+                f"{path}.operators[{index}].marker",
+            )
+        return
+    if component == "reference":
+        for index, reference in enumerate(partial["references_and_ellipsis"]):
+            reference_path = f"{path}.references_and_ellipsis[{index}]"
+            shared._require_source_evidence(
+                reference["expression"],
+                paragraph_text,
+                f"{reference_path}.expression",
+            )
+            shared._require_source_evidence(
+                reference["evidence"],
+                complete_source,
+                f"{reference_path}.evidence",
+            )
+        for index, ellipsis in enumerate(partial["elliptical_subject"]):
+            ellipsis_path = f"{path}.elliptical_subject[{index}]"
+            shared._require_source_evidence(
+                ellipsis["clause"], paragraph_text, f"{ellipsis_path}.clause"
+            )
+            shared._require_source_evidence(
+                ellipsis["predicate"],
+                ellipsis["clause"],
+                f"{ellipsis_path}.predicate",
+            )
+            shared._require_source_evidence(
+                ellipsis["subject_evidence"],
+                complete_source,
+                f"{ellipsis_path}.subject_evidence",
+            )
+            for role_index, binding in enumerate(ellipsis["role_bindings"]):
+                role_path = f"{ellipsis_path}.role_bindings[{role_index}]"
+                shared._require_source_evidence(
+                    binding["evidence"], complete_source, f"{role_path}.evidence"
+                )
+                if binding["evidence_status"] == "explicit":
+                    shared._require_source_evidence(
+                        binding["participant"],
+                        paragraph_text,
+                        f"{role_path}.participant",
+                    )
+        return
+    if component == "constraints":
+        for index, allusion in enumerate(partial["cultural_allusions"]):
+            shared._require_source_evidence(
+                allusion["expression"],
+                paragraph_text,
+                f"{path}.cultural_allusions[{index}].expression",
+            )
+        for index, interpretation in enumerate(
+            partial["competing_interpretations"]
+        ):
+            interpretation_path = f"{path}.competing_interpretations[{index}]"
+            for evidence_index, evidence in enumerate(
+                interpretation["supporting_evidence"]
+                + interpretation["counterevidence"]
+            ):
+                shared._require_source_evidence(
+                    evidence,
+                    complete_source,
+                    f"{interpretation_path}.evidence[{evidence_index}]",
+                )
 
 
 def _contains_ambiguous_status(value: object) -> bool:
@@ -629,7 +753,7 @@ def request_validated_component(
                 None if omit_completion_cap else MAX_COMPLETION_TOKENS,
             )
             return validate_component_content(
-                content, batch, schema_document, component
+                content, batch, schema_document, component, inputs.source
             )
         except AnalysisError as exc:
             last_error = exc
@@ -750,6 +874,9 @@ def build_artifact(
             "transient_batch_retry_limit": TRANSIENT_BATCH_RETRY_LIMIT,
             "cross_component_reconciliation_mode": (
                 CROSS_COMPONENT_RECONCILIATION_MODE
+            ),
+            "component_evidence_prevalidation_mode": (
+                COMPONENT_EVIDENCE_PREVALIDATION_MODE
             ),
             "analysis_components": list(COMPONENT_FIELDS),
             "component_context_windows": COMPONENT_CONTEXT_WINDOWS,
