@@ -113,6 +113,7 @@ def test_deepseek_checkpoint_configuration_binds_window_strategy():
     assert config["max_completion_tokens"] == MODULE.MAX_COMPLETION_TOKENS
     assert config["retry_limit"] == 5
     assert config["component_mode"] == MODULE.COMPONENT_MODE
+    assert config["component_fallback_mode"] == MODULE.COMPONENT_FALLBACK_MODE
     assert config["analysis_components"] == list(MODULE.COMPONENT_FIELDS)
     assert config["component_context_windows"] == MODULE.COMPONENT_CONTEXT_WINDOWS
 
@@ -196,4 +197,62 @@ def test_component_retry_keeps_successful_components(monkeypatch, tmp_path):
     assert calls["temporal"] == 2
     assert all(
         count == 1 for component, count in calls.items() if component != "temporal"
+    )
+
+
+def test_component_exhaustion_falls_back_to_single_paragraph_requests(
+    monkeypatch, tmp_path
+):
+    project = tmp_path / "deepseek-component-single-fallback"
+    project.mkdir()
+    example = ROOT / "examples" / "minimal-article"
+    for name in ("source.dj", "translation-project.yaml", "term-map.yaml"):
+        (project / name).write_bytes((example / name).read_bytes())
+    inputs = MODULE.shared.load_project(project)
+    schema = MODULE.shared.load_analysis_schema()
+    canonical = json.loads((example / "source-analysis.json").read_text(encoding="utf-8"))[
+        "paragraphs"
+    ]
+    calls = []
+
+    def fake_request(_inputs, batch, _schema, component, _credential, _timeout):
+        calls.append((component, tuple(item.paragraph_id for item in batch)))
+        if component == "core" and len(batch) > 1:
+            raise MODULE.AnalysisError("synthetic batch-only empty response")
+        fields = MODULE.COMPONENT_FIELDS[component]
+        allowed = MODULE.OPERATOR_COMPONENT_RULES.get(component, ((), 0))[0]
+        paragraphs = []
+        canonical_by_id = {item["paragraph_id"]: item for item in canonical}
+        for paragraph in batch:
+            source = canonical_by_id[paragraph.paragraph_id]
+            item = {"paragraph_id": source["paragraph_id"]}
+            for field in fields:
+                value = source[field]
+                if field == "operators":
+                    value = [entry for entry in value if entry["kind"] in allowed]
+                item[field] = value
+            paragraphs.append(item)
+        return json.dumps({"paragraphs": paragraphs}, ensure_ascii=False)
+
+    monkeypatch.setattr(MODULE, "request_component", fake_request)
+    monkeypatch.setattr(MODULE.time, "sleep", lambda _seconds: None)
+    analyses = MODULE.analyze_batch(
+        inputs,
+        inputs.paragraphs,
+        schema,
+        MODULE.Credential("not-used", "test"),
+        30.0,
+        1,
+    )
+
+    full_ids = tuple(item.paragraph_id for item in inputs.paragraphs)
+    assert len(analyses) == len(inputs.paragraphs)
+    assert calls.count(("core", full_ids)) == 2
+    assert [(component, ids) for component, ids in calls if component == "core"][2:] == [
+        ("core", (paragraph.paragraph_id,)) for paragraph in inputs.paragraphs
+    ]
+    assert all(
+        calls.count((component, full_ids)) == 1
+        for component in MODULE.COMPONENT_FIELDS
+        if component != "core"
     )

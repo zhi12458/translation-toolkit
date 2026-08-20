@@ -36,6 +36,7 @@ MAX_PROVIDER_RESPONSE_BYTES = 16 * 1024 * 1024
 CONTEXT_MODE = "serial-local-window-with-full-coverage"
 CONTEXT_WINDOW_PARAGRAPHS = 3
 COMPONENT_MODE = "seven-pass-merge"
+COMPONENT_FALLBACK_MODE = "single-paragraph-after-batch-retries"
 COMPONENT_FIELDS = {
     "core": ("predicates", "relations"),
     "temporal": ("temporal_relations",),
@@ -297,26 +298,42 @@ def analyze_batch(
         for paragraph in batch
     }
     for component in COMPONENT_FIELDS:
-        partials = None
-        last_error: AnalysisError | None = None
-        for attempt in range(retries + 1):
-            try:
-                content = request_component(
-                    inputs, batch, schema_document, component, credential, timeout
-                )
-                partials = validate_component_content(
-                    content, batch, schema_document, component
-                )
-                break
-            except AnalysisError as exc:
-                last_error = exc
-                if attempt < retries:
-                    time.sleep(min(60.0, 2.0**attempt))
-        if partials is None:
-            assert last_error is not None
-            raise AnalysisError(
-                f"DeepSeek source-analysis component {component} failed: {last_error}"
-            ) from last_error
+        try:
+            partials = request_validated_component(
+                inputs,
+                batch,
+                schema_document,
+                component,
+                credential,
+                timeout,
+                retries,
+            )
+        except AnalysisError as batch_error:
+            if len(batch) == 1:
+                raise AnalysisError(
+                    f"DeepSeek source-analysis component {component} failed: {batch_error}"
+                ) from batch_error
+            partials = []
+            for paragraph in batch:
+                single = (paragraph,)
+                try:
+                    partials.extend(
+                        request_validated_component(
+                            inputs,
+                            single,
+                            schema_document,
+                            component,
+                            credential,
+                            timeout,
+                            retries,
+                        )
+                    )
+                except AnalysisError as single_error:
+                    raise AnalysisError(
+                        "DeepSeek source-analysis component "
+                        f"{component} single-paragraph fallback {paragraph.paragraph_id} "
+                        f"failed: {single_error}"
+                    ) from single_error
         for partial in partials:
             paragraph_id = partial.pop("paragraph_id")
             for field, value in partial.items():
@@ -335,6 +352,33 @@ def analyze_batch(
     )
 
 
+def request_validated_component(
+    inputs,
+    batch,
+    schema_document: dict,
+    component: str,
+    credential: Credential,
+    timeout: float,
+    retries: int,
+) -> list[dict]:
+    """Request one component, retrying the exact same scoped request."""
+    last_error: AnalysisError | None = None
+    for attempt in range(retries + 1):
+        try:
+            content = request_component(
+                inputs, batch, schema_document, component, credential, timeout
+            )
+            return validate_component_content(
+                content, batch, schema_document, component
+            )
+        except AnalysisError as exc:
+            last_error = exc
+            if attempt < retries:
+                time.sleep(min(60.0, 2.0**attempt))
+    assert last_error is not None
+    raise last_error
+
+
 def configuration(batch_size: int, timeout: float, retries: int) -> dict:
     return {
         "provider": PROVIDER,
@@ -349,6 +393,7 @@ def configuration(batch_size: int, timeout: float, retries: int) -> dict:
         "context_mode": CONTEXT_MODE,
         "context_window_paragraphs": CONTEXT_WINDOW_PARAGRAPHS,
         "component_mode": COMPONENT_MODE,
+        "component_fallback_mode": COMPONENT_FALLBACK_MODE,
         "analysis_components": list(COMPONENT_FIELDS),
         "component_context_windows": COMPONENT_CONTEXT_WINDOWS,
     }
@@ -392,6 +437,7 @@ def build_artifact(
             "context_mode": CONTEXT_MODE,
             "context_window_paragraphs": CONTEXT_WINDOW_PARAGRAPHS,
             "component_mode": COMPONENT_MODE,
+            "component_fallback_mode": COMPONENT_FALLBACK_MODE,
             "analysis_components": list(COMPONENT_FIELDS),
             "component_context_windows": COMPONENT_CONTEXT_WINDOWS,
         },
