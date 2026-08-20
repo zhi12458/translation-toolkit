@@ -26,7 +26,28 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--output", required=True)
     parser.add_argument("--receipts", required=True)
     parser.add_argument("--limit", type=int, default=20)
+    parser.add_argument(
+        "--fixed-term",
+        action="append",
+        default=[],
+        metavar="SOURCE=PREFERRED",
+        help="audited project/release-fixed rendering; repeat as needed",
+    )
     return parser.parse_args(argv)
+
+
+def parse_fixed_terms(values: Sequence[str]) -> dict[str, str]:
+    result: dict[str, str] = {}
+    for value in values:
+        source, separator, preferred = value.partition("=")
+        source = source.strip()
+        preferred = preferred.strip()
+        if not separator or not source or not preferred:
+            raise ToolkitError("--fixed-term must use non-empty SOURCE=PREFERRED syntax")
+        if source in result:
+            raise ToolkitError(f"duplicate --fixed-term source: {source!r}")
+        result[source] = preferred
+    return result
 
 
 def load_candidates(path: Path) -> list[dict[str, str]]:
@@ -82,9 +103,21 @@ def search_term(term: str, limit: int) -> tuple[list[dict], dict]:
     return results, receipt
 
 
-def build_entry(candidate: dict[str, str], results: list[dict]) -> dict:
+def build_entry(candidate: dict[str, str], results: list[dict], fixed_terms: dict[str, str]) -> dict:
     source = candidate["source"]
     exact = [row for row in results if str(row.get("zh", "")).strip() == source]
+    if source in fixed_terms:
+        return {
+            "source": source,
+            "sense": candidate["sense"] or source,
+            "preferred": fixed_terms[source],
+            "allowed": [],
+            "forbidden": [],
+            "sources": ["audited project/release fixed term"],
+            "rationale": "Applied by the locked toolkit from an explicit audited --fixed-term argument after MPI terminology search.",
+            "status": "selected",
+            "reviewer": "translation-toolkit/build-term-map.py",
+        }
     if not exact:
         return {
             "source": source,
@@ -135,13 +168,21 @@ def main(argv: Sequence[str] | None = None) -> int:
         receipts = resolve_output(args.receipts, [source_path, candidates_path, output])
         source_text = source_path.read_text(encoding="utf-8")
         candidates = load_candidates(candidates_path)
+        fixed_terms = parse_fixed_terms(args.fixed_term)
+        candidate_sources = {candidate["source"] for candidate in candidates}
+        unused_fixed = sorted(set(fixed_terms) - candidate_sources)
+        if unused_fixed:
+            raise ToolkitError(
+                "--fixed-term source is absent from term candidates: "
+                + ", ".join(repr(item) for item in unused_fixed)
+            )
         entries: list[dict] = []
         receipt_rows: list[dict] = []
         for candidate in candidates:
             if candidate["source"] not in source_text:
                 raise ToolkitError(f"term candidate is absent from source.dj: {candidate['source']!r}")
             results, receipt = search_term(candidate["source"], args.limit)
-            entries.append(build_entry(candidate, results))
+            entries.append(build_entry(candidate, results, fixed_terms))
             receipt_rows.append(receipt)
         atomic_write_text(output, json.dumps({"version": 1, "terms": entries}, ensure_ascii=False, indent=2) + "\n")
         atomic_write_text(receipts, "".join(json.dumps(row, ensure_ascii=False, sort_keys=True) + "\n" for row in receipt_rows))

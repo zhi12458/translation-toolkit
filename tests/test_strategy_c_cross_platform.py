@@ -141,6 +141,37 @@ def test_term_map_invokes_locked_search_and_writes_receipts(tmp_path):
     assert receipt["exit_code"] == 0
 
 
+def test_term_map_accepts_audited_fixed_term_after_search(tmp_path):
+    source = tmp_path / "source.dj"
+    candidates = tmp_path / "term-candidates.json"
+    output = tmp_path / "term-map.yaml"
+    receipts = tmp_path / "term-search-receipts.jsonl"
+    source.write_text("济群法师\n", encoding="utf-8")
+    candidates.write_text(
+        json.dumps({"terms": [{"source": "济群法师", "sense": "author name"}]}, ensure_ascii=False),
+        encoding="utf-8",
+    )
+
+    completed = run_script(
+        "build-term-map.py",
+        source,
+        candidates,
+        "--output",
+        output,
+        "--receipts",
+        receipts,
+        "--fixed-term",
+        "济群法师=Master Jiqun",
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    term_map = json.loads(output.read_text(encoding="utf-8"))
+    assert term_map["terms"][0]["preferred"] == "Master Jiqun"
+    receipt = json.loads(receipts.read_text(encoding="utf-8"))
+    assert receipt["source"] == "济群法师"
+    assert receipt["result_count"] == 0
+
+
 def write_media_project(project: Path, *, long_target=False):
     project.mkdir()
     (project / "source.dj").write_text("正念呼吸\n回到当下\n", encoding="utf-8")

@@ -491,8 +491,11 @@ regenerating the same Python in execute_code each turn.
 - `toolkit/scripts/docx2dj.py <docx> <source.dj>` — cross-platform atomic DOCX
   extraction through Pandoc.
 - `toolkit/scripts/build-term-map.py <source.dj> <term-candidates.json>
-  --output <term-map.yaml> --receipts <term-search-receipts.jsonl>` — invoke
-  the locked MPI terminology search and freeze the decisions and receipts.
+  --output <term-map.yaml> --receipts <term-search-receipts.jsonl>
+  [--fixed-term SOURCE=PREFERRED]` — invoke the locked MPI terminology search
+  and freeze the decisions and receipts. A locked project/release may pass a
+  repeated explicit fixed-term argument; the search still runs and the full
+  override remains visible in the audited command receipt.
 - `toolkit/scripts/deepseek-source-analysis.py <project-dir>` — serial,
   checkpointed DeepSeek V4 Flash `high` blind analysis over toolkit-frozen
   inputs; never reads `target.dj`.
