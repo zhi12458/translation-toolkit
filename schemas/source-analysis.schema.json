@@ -134,6 +134,14 @@
         "context_window_paragraphs": {"type": "integer", "minimum": 0},
         "retry_limit": {"type": "integer", "minimum": 0},
         "component_mode": {"type": "string", "enum": ["seven-pass-merge"]},
+        "component_fallback_mode": {
+          "type": "string",
+          "enum": ["single-paragraph-after-batch-retries"]
+        },
+        "completion_recovery_mode": {
+          "type": "string",
+          "enum": ["omit-max-completion-tokens-after-empty-or-length"]
+        },
         "analysis_components": {
           "type": "array",
           "minItems": 7,

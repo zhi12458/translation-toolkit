@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Create blind DeepSeek V4 Flash source analysis for strategy C."""
+"""Create blind DeepSeek V4 Flash source analysis for strategy M."""
 
 from __future__ import annotations
 
@@ -37,6 +37,7 @@ CONTEXT_MODE = "serial-local-window-with-full-coverage"
 CONTEXT_WINDOW_PARAGRAPHS = 3
 COMPONENT_MODE = "seven-pass-merge"
 COMPONENT_FALLBACK_MODE = "single-paragraph-after-batch-retries"
+COMPLETION_RECOVERY_MODE = "omit-max-completion-tokens-after-empty-or-length"
 COMPONENT_FIELDS = {
     "core": ("predicates", "relations"),
     "temporal": ("temporal_relations",),
@@ -96,6 +97,10 @@ class DeepSeekRateLimitError(AnalysisError):
     """Safe DeepSeek 429 signal without a provider response body."""
 
 
+class DeepSeekCompletionRecoveryError(AnalysisError):
+    """A response that may recover when the explicit completion cap is omitted."""
+
+
 class RejectRedirectHandler(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, request, fp, code, msg, headers, newurl):
         return None
@@ -120,7 +125,7 @@ def load_credential(environ: Mapping[str, str] | None = None) -> Credential:
     key = result.stdout.strip() if result.returncode == 0 else ""
     if not key:
         raise AnalysisError(
-            f"missing DeepSeek credential: set {ENVIRONMENT_VARIABLE} or provide it through the strategy-C secure credential helper"
+            f"missing DeepSeek credential: set {ENVIRONMENT_VARIABLE} or provide it through the strategy-M secure credential helper"
         )
     return Credential(key, f"macOS Keychain ({KEYCHAIN_SERVICE}/{account})")
 
@@ -164,7 +169,13 @@ def build_component_schema(
     )
 
 
-def build_request_payload(inputs, batch, schema_document: dict, component: str) -> dict:
+def build_request_payload(
+    inputs,
+    batch,
+    schema_document: dict,
+    component: str,
+    max_completion_tokens: int | None = MAX_COMPLETION_TOKENS,
+) -> dict:
     _unused_system, context_prompt, batch_prompt = shared.build_windowed_prompt(
         inputs,
         batch,
@@ -182,7 +193,7 @@ def build_request_payload(inputs, batch, schema_document: dict, component: str) 
 <required-json-schema>
 """ + json.dumps(provider_schema, ensure_ascii=False, separators=(",", ":")) + """
 </required-json-schema>"""
-    return {
+    payload = {
         "model": MODEL,
         "messages": [
             {"role": "system", "content": system_prompt},
@@ -193,9 +204,11 @@ def build_request_payload(inputs, batch, schema_document: dict, component: str) 
         "stream": False,
         "thinking": {"type": "enabled"},
         "reasoning_effort": "high",
-        "max_tokens": MAX_COMPLETION_TOKENS,
         "response_format": {"type": "json_object"},
     }
+    if max_completion_tokens is not None:
+        payload["max_tokens"] = max_completion_tokens
+    return payload
 
 
 def request_component(
@@ -205,9 +218,16 @@ def request_component(
     component: str,
     credential: Credential,
     timeout: float,
+    max_completion_tokens: int | None = MAX_COMPLETION_TOKENS,
 ) -> str:
     body = json.dumps(
-        build_request_payload(inputs, batch, schema_document, component),
+        build_request_payload(
+            inputs,
+            batch,
+            schema_document,
+            component,
+            max_completion_tokens=max_completion_tokens,
+        ),
         ensure_ascii=False,
     ).encode("utf-8")
     request = urllib.request.Request(
@@ -218,7 +238,7 @@ def request_component(
             "Authorization": f"Bearer {credential.value}",
             "Content-Type": "application/json",
             "Accept": "application/json",
-            "User-Agent": "mpi-translation-toolkit/strategy-c",
+            "User-Agent": "mpi-translation-toolkit/strategy-m",
         },
     )
     try:
@@ -237,16 +257,38 @@ def request_component(
         envelope = json.loads(raw.decode("utf-8"))
         choices = envelope["choices"]
         choice = choices[0]
-        content = choice["message"]["content"]
+        message = choice["message"]
+        content = message["content"]
         finish_reason = choice["finish_reason"]
     except (UnicodeError, json.JSONDecodeError, KeyError, IndexError, TypeError) as exc:
         raise AnalysisError("DeepSeek API returned an invalid response envelope") from exc
     if not isinstance(choices, list) or len(choices) != 1:
         raise AnalysisError("DeepSeek API returned an invalid choice count")
+    reasoning_content = message.get("reasoning_content")
+    reasoning_bytes = (
+        len(reasoning_content.encode("utf-8"))
+        if isinstance(reasoning_content, str)
+        else 0
+    )
+    usage = envelope.get("usage")
+    completion_tokens = (
+        usage.get("completion_tokens") if isinstance(usage, dict) else None
+    )
+    completion_metadata = (
+        f"finish_reason={finish_reason}, reasoning_bytes={reasoning_bytes}, "
+        "completion_tokens="
+        f"{completion_tokens if isinstance(completion_tokens, int) else 'unknown'}"
+    )
+    if finish_reason == "length":
+        raise DeepSeekCompletionRecoveryError(
+            f"DeepSeek API reached the completion limit ({completion_metadata})"
+        )
     if finish_reason != "stop":
         raise AnalysisError("DeepSeek API did not finish with stop")
     if not isinstance(content, str) or not content.strip():
-        raise AnalysisError("DeepSeek API returned empty structured content")
+        raise DeepSeekCompletionRecoveryError(
+            f"DeepSeek API returned empty structured content ({completion_metadata})"
+        )
     return content
 
 
@@ -361,12 +403,19 @@ def request_validated_component(
     timeout: float,
     retries: int,
 ) -> list[dict]:
-    """Request one component, retrying the exact same scoped request."""
+    """Request one component, dropping the cap only after a recoverable completion."""
     last_error: AnalysisError | None = None
+    omit_completion_cap = False
     for attempt in range(retries + 1):
         try:
             content = request_component(
-                inputs, batch, schema_document, component, credential, timeout
+                inputs,
+                batch,
+                schema_document,
+                component,
+                credential,
+                timeout,
+                None if omit_completion_cap else MAX_COMPLETION_TOKENS,
             )
             return validate_component_content(
                 content, batch, schema_document, component
@@ -374,6 +423,17 @@ def request_validated_component(
         except AnalysisError as exc:
             last_error = exc
             if attempt < retries:
+                if isinstance(exc, DeepSeekCompletionRecoveryError):
+                    if not omit_completion_cap:
+                        paragraph_ids = ",".join(
+                            paragraph.paragraph_id for paragraph in batch
+                        )
+                        print(
+                            "DeepSeek completion recovery: omitting the explicit "
+                            f"completion cap for {component} [{paragraph_ids}].",
+                            flush=True,
+                        )
+                    omit_completion_cap = True
                 time.sleep(min(60.0, 2.0**attempt))
     assert last_error is not None
     raise last_error
@@ -394,6 +454,7 @@ def configuration(batch_size: int, timeout: float, retries: int) -> dict:
         "context_window_paragraphs": CONTEXT_WINDOW_PARAGRAPHS,
         "component_mode": COMPONENT_MODE,
         "component_fallback_mode": COMPONENT_FALLBACK_MODE,
+        "completion_recovery_mode": COMPLETION_RECOVERY_MODE,
         "analysis_components": list(COMPONENT_FIELDS),
         "component_context_windows": COMPONENT_CONTEXT_WINDOWS,
     }
@@ -438,6 +499,7 @@ def build_artifact(
             "context_window_paragraphs": CONTEXT_WINDOW_PARAGRAPHS,
             "component_mode": COMPONENT_MODE,
             "component_fallback_mode": COMPONENT_FALLBACK_MODE,
+            "completion_recovery_mode": COMPLETION_RECOVERY_MODE,
             "analysis_components": list(COMPONENT_FIELDS),
             "component_context_windows": COMPONENT_CONTEXT_WINDOWS,
         },

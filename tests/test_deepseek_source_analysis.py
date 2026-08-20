@@ -114,6 +114,7 @@ def test_deepseek_checkpoint_configuration_binds_window_strategy():
     assert config["retry_limit"] == 5
     assert config["component_mode"] == MODULE.COMPONENT_MODE
     assert config["component_fallback_mode"] == MODULE.COMPONENT_FALLBACK_MODE
+    assert config["completion_recovery_mode"] == MODULE.COMPLETION_RECOVERY_MODE
     assert config["analysis_components"] == list(MODULE.COMPONENT_FIELDS)
     assert config["component_context_windows"] == MODULE.COMPONENT_CONTEXT_WINDOWS
 
@@ -165,7 +166,15 @@ def test_component_retry_keeps_successful_components(monkeypatch, tmp_path):
     ]
     calls = {component: 0 for component in MODULE.COMPONENT_FIELDS}
 
-    def fake_request(_inputs, _batch, _schema, component, _credential, _timeout):
+    def fake_request(
+        _inputs,
+        _batch,
+        _schema,
+        component,
+        _credential,
+        _timeout,
+        _max_completion_tokens,
+    ):
         calls[component] += 1
         if component == "temporal" and calls[component] == 1:
             raise MODULE.AnalysisError("synthetic empty response")
@@ -215,7 +224,15 @@ def test_component_exhaustion_falls_back_to_single_paragraph_requests(
     ]
     calls = []
 
-    def fake_request(_inputs, batch, _schema, component, _credential, _timeout):
+    def fake_request(
+        _inputs,
+        batch,
+        _schema,
+        component,
+        _credential,
+        _timeout,
+        _max_completion_tokens,
+    ):
         calls.append((component, tuple(item.paragraph_id for item in batch)))
         if component == "core" and len(batch) > 1:
             raise MODULE.AnalysisError("synthetic batch-only empty response")
@@ -256,3 +273,73 @@ def test_component_exhaustion_falls_back_to_single_paragraph_requests(
         for component in MODULE.COMPONENT_FIELDS
         if component != "core"
     )
+
+
+def test_empty_completion_retries_without_explicit_completion_cap(
+    monkeypatch, tmp_path
+):
+    project = tmp_path / "deepseek-completion-recovery"
+    project.mkdir()
+    example = ROOT / "examples" / "minimal-article"
+    for name in ("source.dj", "translation-project.yaml", "term-map.yaml"):
+        (project / name).write_bytes((example / name).read_bytes())
+    inputs = MODULE.shared.load_project(project)
+    schema = MODULE.shared.load_analysis_schema()
+    batch = inputs.paragraphs[:1]
+    canonical = json.loads((example / "source-analysis.json").read_text(encoding="utf-8"))[
+        "paragraphs"
+    ][0]
+    completion_caps = []
+
+    def fake_request(
+        _inputs,
+        _batch,
+        _schema,
+        component,
+        _credential,
+        _timeout,
+        max_completion_tokens,
+    ):
+        completion_caps.append(max_completion_tokens)
+        if len(completion_caps) == 1:
+            raise MODULE.DeepSeekCompletionRecoveryError(
+                "synthetic empty structured content"
+            )
+        item = {"paragraph_id": canonical["paragraph_id"]}
+        for field in MODULE.COMPONENT_FIELDS[component]:
+            item[field] = canonical[field]
+        return json.dumps({"paragraphs": [item]}, ensure_ascii=False)
+
+    monkeypatch.setattr(MODULE, "request_component", fake_request)
+    monkeypatch.setattr(MODULE.time, "sleep", lambda _seconds: None)
+    partials = MODULE.request_validated_component(
+        inputs,
+        batch,
+        schema,
+        "core",
+        MODULE.Credential("not-used", "test"),
+        30.0,
+        1,
+    )
+
+    assert partials[0]["paragraph_id"] == canonical["paragraph_id"]
+    assert completion_caps == [MODULE.MAX_COMPLETION_TOKENS, None]
+
+
+def test_payload_omits_max_tokens_only_for_completion_recovery(tmp_path):
+    project = tmp_path / "deepseek-recovery-payload"
+    project.mkdir()
+    example = ROOT / "examples" / "minimal-article"
+    for name in ("source.dj", "translation-project.yaml", "term-map.yaml"):
+        (project / name).write_bytes((example / name).read_bytes())
+    inputs = MODULE.shared.load_project(project)
+    schema = MODULE.shared.load_analysis_schema()
+    batch = inputs.paragraphs[:1]
+
+    primary = MODULE.build_request_payload(inputs, batch, schema, "core")
+    recovery = MODULE.build_request_payload(
+        inputs, batch, schema, "core", max_completion_tokens=None
+    )
+
+    assert primary["max_tokens"] == MODULE.MAX_COMPLETION_TOKENS
+    assert "max_tokens" not in recovery
