@@ -28,6 +28,7 @@ def test_json_mode_prompt_contains_exact_batch_schema_and_remains_blind(tmp_path
     schema_message = payload["messages"][2]["content"]
 
     assert payload["response_format"] == {"type": "json_object"}
+    assert payload["max_tokens"] == MODULE.MAX_COMPLETION_TOKENS == 8192
     assert "<required-json-schema>" in schema_message
     assert '"additionalProperties":false' in schema_message
     assert '"paragraphs"' in schema_message
@@ -92,14 +93,16 @@ def test_long_document_prompt_uses_complete_outline_local_window_and_relevant_te
     context = payload["messages"][1]["content"]
     schema_message = payload["messages"][2]["content"]
 
-    assert "<complete-chinese-structure-index>" in context
+    assert "<document-structure>" in context
     assert "<exact-local-chinese-window>" in context
+    assert "只依据中文全文" not in payload["messages"][0]["content"]
     assert "[L4] 第三段是当前请求。" in context
-    assert "[L8] 遥远段落的开头" in context
+    assert '"L8"' in context
+    assert "遥远段落的开头" not in context
     assert distant_tail not in serialized
     assert '"source": "正念"' in context
     assert "SHOULD_NOT_APPEAR" not in serialized
-    assert '"description"' not in schema_message
+    assert '"description"' in schema_message
     assert payload["messages"][3]["content"].count("L4") == 1
 
 
@@ -108,4 +111,4 @@ def test_deepseek_checkpoint_configuration_binds_window_strategy():
 
     assert config["context_mode"] == MODULE.CONTEXT_MODE
     assert config["context_window_paragraphs"] == MODULE.CONTEXT_WINDOW_PARAGRAPHS
-    assert config["outline_prefix_characters"] == MODULE.OUTLINE_PREFIX_CHARACTERS
+    assert config["max_completion_tokens"] == MODULE.MAX_COMPLETION_TOKENS

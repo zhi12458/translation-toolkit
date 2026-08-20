@@ -129,10 +129,9 @@
         },
         "context_mode": {
           "type": "string",
-          "enum": ["complete-structure-index-plus-local-window"]
+          "enum": ["complete-id-heading-structure-plus-local-window"]
         },
-        "context_window_paragraphs": {"type": "integer", "minimum": 0},
-        "outline_prefix_characters": {"type": "integer", "minimum": 1}
+        "context_window_paragraphs": {"type": "integer", "minimum": 0}
       },
       "allOf": [
         {

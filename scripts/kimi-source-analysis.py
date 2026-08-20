@@ -549,36 +549,11 @@ def build_prompt(
     return system_prompt, context_prompt, batch_prompt
 
 
-def _compact_schema_for_prompt(schema: dict) -> dict:
-    """Remove prose annotations from a schema that is sent as prompt data.
-
-    DeepSeek JSON mode does not enforce the supplied schema.  The complete
-    repository schema is still used for local validation after the response is
-    received, so omitting descriptions here reduces request size without
-    weakening any acceptance rule.
-    """
-    compact: dict = {}
-    for key, value in schema.items():
-        if key in {"description", "title", "$id", "$schema"}:
-            continue
-        if isinstance(value, dict):
-            compact[key] = _compact_schema_for_prompt(value)
-        elif isinstance(value, list):
-            compact[key] = [
-                _compact_schema_for_prompt(item) if isinstance(item, dict) else item
-                for item in value
-            ]
-        else:
-            compact[key] = copy.deepcopy(value)
-    return compact
-
-
 def build_windowed_prompt(
     inputs: ProjectInputs,
     batch: Sequence[SourceParagraph],
     *,
     context_window_paragraphs: int = 3,
-    outline_prefix_characters: int = 40,
 ) -> tuple[str, str, str]:
     """Build a blind long-document prompt with bounded exact context.
 
@@ -591,8 +566,6 @@ def build_windowed_prompt(
     """
     if context_window_paragraphs < 0:
         raise AnalysisError("source-analysis context window must not be negative")
-    if outline_prefix_characters < 1:
-        raise AnalysisError("source-analysis outline prefix must be positive")
     if not batch:
         raise AnalysisError("source-analysis batch must not be empty")
 
@@ -626,22 +599,34 @@ def build_windowed_prompt(
         sort_keys=True,
     )
 
-    outline_lines: list[str] = []
+    heading_lines: list[str] = []
     for paragraph in inputs.paragraphs:
         stripped = paragraph.text.strip()
         if stripped.startswith("#"):
-            summary = stripped
-        else:
-            summary = stripped[:outline_prefix_characters]
-            if len(stripped) > outline_prefix_characters:
-                summary += "…"
-        outline_lines.append(f"[{paragraph.paragraph_id}] {summary}")
+            heading_lines.append(f"[{paragraph.paragraph_id}] {stripped}")
+    structure_index = json.dumps(
+        {
+            "paragraph_order": [
+                paragraph.paragraph_id for paragraph in inputs.paragraphs
+            ],
+            "headings": heading_lines,
+        },
+        ensure_ascii=False,
+        indent=2,
+    )
     local_source = "\n".join(
         f"[{paragraph.paragraph_id}] {paragraph.text}" for paragraph in local_paragraphs
     )
     requested_ids = ", ".join(paragraph.paragraph_id for paragraph in batch)
     system_prompt, _complete_context, _batch_prompt = build_prompt(inputs, batch)
-    context_prompt = f"""下面是冻结项目的盲态中文上下文。全篇结构索引中的普通段落只保留开头，不能用省略号后的内容作逐字证据；逐字证据只能取自当前精确窗口。所有批次合并后仍须覆盖冻结源稿的每个非空段落。
+    system_prompt = system_prompt.replace(
+        "只依据中文全文、项目背景和术语表分析",
+        "只依据冻结中文源稿的全篇结构索引、当前精确中文窗口、项目背景和相关术语分析",
+    ).replace(
+        "中文全文中连续逐字出现",
+        "当前精确中文窗口中连续逐字出现",
+    )
+    context_prompt = f"""下面是冻结项目的盲态中文上下文。document-structure 只表示全篇非空段落顺序和完整标题层级，不是正文证据。当前待分析段落及其邻近上下文只在 exact-local-chinese-window 出现一次，并已完整提供；逐字证据只能取自该窗口。所有批次合并后仍须覆盖冻结源稿的每个非空段落。
 <translation-project.yaml>
 {inputs.project}
 </translation-project.yaml>
@@ -650,9 +635,9 @@ def build_windowed_prompt(
 {relevant_term_map}
 </relevant-term-map.yaml>
 
-<complete-chinese-structure-index>
-{chr(10).join(outline_lines)}
-</complete-chinese-structure-index>
+<document-structure>
+{structure_index}
+</document-structure>
 
 <exact-local-chinese-window>
 {local_source}

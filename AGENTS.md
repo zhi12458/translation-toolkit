@@ -503,7 +503,9 @@ regenerating the same Python in execute_code each turn.
   paragraphs plus three neighbouring paragraphs on each side, and only term
   entries occurring in that exact window. Every frozen paragraph is still
   analyzed across the serial run, and responses still pass the complete local
-  v3 schema and full-source evidence checks.
+  v3 schema and full-source evidence checks. The request explicitly reserves
+  8192 completion tokens because Flash thinking tokens and final JSON share the
+  same completion budget; an empty final `content` is never accepted.
 - `toolkit/scripts/freeze-target.py <source.dj> <sol-draft.dj> --output
   <target.dj>` — validate line and blank-line alignment, then atomically freeze
   Sol's English as the canonical target.
