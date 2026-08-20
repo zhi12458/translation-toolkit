@@ -1,5 +1,5 @@
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "stage": "semantic_review",
   "provider": "internal",
   "model": "fixture-human-review",
@@ -21,9 +21,11 @@
       "negation": "not_present",
       "degree": "not_present",
       "elliptical_subject": "not_present",
+      "cultural_allusions": "not_present",
       "semantic_roles": "preserved",
       "actor_or_state_holder": "标题无省略主语。",
       "cause_or_instrument": "标题无相关原因或工具。",
+      "allusion_or_quotation": "标题无相关典故或引语。",
       "finding_ids": []
     },
     {
@@ -33,9 +35,11 @@
       "negation": "not_present",
       "degree": "preserved",
       "elliptical_subject": "not_present",
+      "cultural_allusions": "not_present",
       "semantic_roles": "preserved",
       "actor_or_state_holder": "我们是观察者。",
       "cause_or_instrument": "正念是帮助因素。",
+      "allusion_or_quotation": "本段无相关典故或引语。",
       "finding_ids": []
     }
   ],

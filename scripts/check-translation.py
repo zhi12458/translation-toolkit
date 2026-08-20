@@ -709,8 +709,8 @@ def semantic_review_from_json(text):
             "semantic-review.json missing fields: " + ", ".join(missing)
         )
     reject_unknown_fields(document, required, "semantic-review.json")
-    if document["schema_version"] != 2:
-        raise ValueError("semantic-review.json schema_version must be 2")
+    if document["schema_version"] != 3:
+        raise ValueError("semantic-review.json schema_version must be 3")
     if document["stage"] != "semantic_review":
         raise ValueError("semantic-review.json stage must be semantic_review")
     provider = require_nonempty_string(
@@ -778,8 +778,9 @@ def semantic_review_from_json(text):
     paragraph_audits = document["paragraph_audits"]
     required_audit_fields = {
         "paragraph_id", "temporal_relations", "conditions", "negation", "degree",
-        "elliptical_subject", "semantic_roles", "actor_or_state_holder",
-        "cause_or_instrument", "finding_ids",
+        "elliptical_subject", "cultural_allusions", "semantic_roles",
+        "actor_or_state_holder", "cause_or_instrument",
+        "allusion_or_quotation", "finding_ids",
     }
     audit_statuses = {"not_present", "preserved", "finding"}
     if not isinstance(paragraph_audits, list) or not paragraph_audits:
@@ -793,13 +794,15 @@ def semantic_review_from_json(text):
         audit_ids.append(paragraph_id)
         for dimension in (
             "temporal_relations", "conditions", "negation", "degree",
-            "elliptical_subject", "semantic_roles",
+            "elliptical_subject", "cultural_allusions", "semantic_roles",
         ):
             if audit[dimension] not in audit_statuses:
                 raise ValueError(f"{label} {dimension} has an invalid status")
         if audit["semantic_roles"] == "not_present":
             raise ValueError(f"{label} semantic_roles cannot be not_present")
-        for field in ("actor_or_state_holder", "cause_or_instrument"):
+        for field in (
+            "actor_or_state_holder", "cause_or_instrument", "allusion_or_quotation"
+        ):
             require_nonempty_string(audit[field], f"{label} {field}")
         audit_finding_ids = audit["finding_ids"]
         if (
@@ -810,7 +813,7 @@ def semantic_review_from_json(text):
             raise ValueError(f"{label} finding_ids must be unique non-empty strings")
         if any(audit[name] == "finding" for name in (
             "temporal_relations", "conditions", "negation", "degree",
-            "elliptical_subject", "semantic_roles",
+            "elliptical_subject", "cultural_allusions", "semantic_roles",
         )) and not audit_finding_ids:
             raise ValueError(f"{label} records a finding without finding_ids")
     if len(audit_ids) != len(set(audit_ids)):

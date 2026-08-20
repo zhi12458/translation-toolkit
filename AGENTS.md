@@ -265,6 +265,16 @@ After translating, load `mpi-translation-review` (self mode) to check:
 - Missing content (mid-paragraph truncation)
 - Inconsistency (same term translated differently)
 
+For M Strategy runs, Flash source analysis must also enumerate
+`cultural_allusions` for every nonblank source line. This includes idioms,
+proverbs, classical quotations, canonical or historical allusions, scriptural
+quotations, and fixed classical expressions. Every declared item requires an
+audited external-research decision before Sol translation. The independent Pro
+review must check the contextual sense again without reading Flash analysis.
+The regression phrase `独善其身` must be treated as a Mencian expression whose
+classical self-cultivation/integrity sense is distinct from its later
+self-interested pejorative sense.
+
 ### Strategy M semantic gates
 
 For audited Strategy M runs, the locked source-analysis and bilingual-review

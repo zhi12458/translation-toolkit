@@ -102,6 +102,7 @@ def valid_paragraph(paragraph_id, source_text):
         "operators": [],
         "references_and_ellipsis": [],
         "elliptical_subject": [],
+        "cultural_allusions": [],
         "competing_interpretations": [],
         "must_preserve": ["保留原句的判断关系"],
         "must_not_invent": ["不得擅增时态或情态"],
@@ -192,6 +193,59 @@ def test_request_is_strict_high_and_contains_full_source_but_not_target(tmp_path
     assert paragraph_id_schema["properties"]["paragraphs"]["items"]["properties"][
         "paragraph_id"
     ]["enum"] == ["L1"]
+
+
+def test_du_shan_qi_shen_requires_cultural_allusion_and_must_preserve(tmp_path):
+    project = make_project(tmp_path)
+    (project / "source.dj").write_text(
+        "倘生不逢时，才会退隐江湖、独善其身。\n", encoding="utf-8"
+    )
+    inputs = kimi.load_project(project)
+    schema = kimi.load_analysis_schema()
+    analysis = valid_paragraph("L1", inputs.paragraphs[0].text)
+    analysis["temporal_relations"] = [
+        {
+            "marker": "时",
+            "relation": "when",
+            "event_or_scope": "生不逢时",
+            "linked_event": "退隐江湖",
+            "evidence_status": "explicit",
+            "notes": "时限定所生处境。",
+        },
+        {
+            "marker": "才",
+            "relation": "only_then",
+            "event_or_scope": "退隐江湖、独善其身",
+            "linked_event": "生不逢时",
+            "evidence_status": "explicit",
+            "notes": "才表示条件满足后方发生。",
+        },
+    ]
+    analysis["must_preserve"] = ["必须保留时与才的约束"]
+    content = json.dumps({"paragraphs": [analysis]}, ensure_ascii=False)
+    with pytest.raises(kimi.AnalysisError, match="cultural_allusions omits known allusion"):
+        kimi.validate_batch_content(content, inputs.paragraphs, schema, inputs.source)
+
+    analysis["cultural_allusions"] = [{
+        "expression": "独善其身",
+        "kind": "canonical_allusion",
+        "source_or_origin": "《孟子·尽心上》",
+        "contextual_meaning": "退隐后修养自身德行并保持节操。",
+        "competing_senses": ["后起义可指只顾自己。"],
+        "translation_constraint": "采用古义，不得误作自私自利。",
+        "research_trigger": "mpi_missing",
+        "external_research_required": True,
+        "evidence_status": "explicit",
+        "notes": "本段与生不逢时和退隐并列，采用古义。",
+    }]
+    analysis["must_preserve"].append("独善其身采用古义")
+    validated = kimi.validate_batch_content(
+        json.dumps({"paragraphs": [analysis]}, ensure_ascii=False),
+        inputs.paragraphs,
+        schema,
+        inputs.source,
+    )
+    assert validated[0]["cultural_allusions"][0]["research_trigger"] == "mpi_missing"
 
 
 def test_provider_schema_gives_every_enum_and_const_an_explicit_type(tmp_path):

@@ -522,7 +522,8 @@ def build_prompt(
 5. 标注时态、体、情态、否定、数量和程度的作用域；中文未明确的英语时态或情态不得擅自推导。
 6. 标注指代、省略主语、承前主语和可竞争解释。语法上邻近的主语不能自动充当另一谓词的隐含施事。participant 或 referent 为 null 时绝不能标 explicit；上下文只能推定存在该角色时标 contextual_inference，存在竞争解释时标 ambiguous。
 7. 遇到佛法格言、文言压缩句、对仗句或其他省略句，必须另填 elliptical_subject。先反问“究竟是谁做、谁处于该状态”，再把 agent、cause、instrument、state_holder 分开记录；智慧、慈悲等原因或工具不得仅因位于句首就提升为英文施事或状态承担者。必须结合紧随其后的“因为……所以……”等解释句判定。例如“智不住三有，悲不住涅槃”中的“不住”由佛陀所示范的修行者承担，智慧与慈悲说明为什么或凭什么不住，不能分析成智慧或慈悲自身在安住或不安住。
-8. 给出必须保留和不得擅增的意义约束。原文没有义务、可能、建议或确定过去时，就应在不得擅增中明确说明。
+8. 单列 cultural_allusions：逐段识别成语、格言、典故、经论引语、文言固定结构和历史文化指涉。不得把古义自动改成现代贬义，也不得把解释性意译伪装成固定英文成语。每项必须逐字记录 expression，说明本段语境义、竞争义和翻译约束，设置恰当 research_trigger，并把 external_research_required 固定为 true；即使术语表已有候选译法也不得省略。特别是“独善其身”必须识别为《孟子》文化表达，区分“独处修养并保持节操”的古义与“只顾自己”的后起贬义，并把原词逐字加入 must_preserve。
+9. 给出必须保留和不得擅增的意义约束。原文没有义务、可能、建议或确定过去时，就应在不得擅增中明确说明。
 
 保持分析精炼，只记录会约束翻译的实义，不要逐句穷举普通谓词、功能词或重复同一信息。每段只选择最多八个最可能导致错译的关键谓词；参与者只保留会影响英文主语、宾语或歧义判断的角色。notes、释义和约束各用一个短句，不复述证据。作者和讲座信息可采用最小分析。主标题、目录项和章节标题必须识别中心词、修饰范围、目的或路径关系，以及平行标题之间的区别；只记录这些约束，不擅自扩写主题。重复出现的同一标题应给出一致的 must_preserve 约束；存在两个可信标题义时标 needs_human，不能因标题短而跳过歧义。
 
@@ -779,6 +780,11 @@ _ELLIPTICAL_PARALLEL_RE = re.compile(
     r"(?:^|[，；。])[^，；。]{1,12}不[^，；。]{1,12}[，；]"
     r"[^，；。]{1,12}不[^，；。]{1,12}"
 )
+_KNOWN_CULTURAL_ALLUSIONS = (
+    "穷则独善其身，达则兼善天下",
+    "修身、齐家、治国、平天下",
+    "独善其身",
+)
 
 
 def _required_temporal_markers(paragraph_text: str) -> tuple[str, ...]:
@@ -801,6 +807,20 @@ def _required_temporal_markers(paragraph_text: str) -> tuple[str, ...]:
         if marker not in ordered:
             ordered.append(marker)
     return tuple(ordered)
+
+
+def _required_cultural_allusions(paragraph_text: str) -> tuple[str, ...]:
+    """Return release-regression allusions that must never be silently missed."""
+    occupied: set[int] = set()
+    hits: list[tuple[int, str]] = []
+    for expression in _KNOWN_CULTURAL_ALLUSIONS:
+        for match in re.finditer(re.escape(expression), paragraph_text):
+            positions = set(range(match.start(), match.end()))
+            if positions & occupied:
+                continue
+            hits.append((match.start(), expression))
+            occupied.update(positions)
+    return tuple(expression for _position, expression in sorted(hits))
 
 
 def _causal_participants(paragraph_text: str) -> tuple[str, ...]:
@@ -1015,6 +1035,39 @@ def _validate_semantic_evidence(
                 f"source analysis field {path}.elliptical_subject does not separate cause or instrument"
             )
 
+    allusion_expressions: list[str] = []
+    for allusion_index, allusion in enumerate(analysis["cultural_allusions"]):
+        allusion_path = f"{path}.cultural_allusions[{allusion_index}]"
+        ambiguous = ambiguous or allusion["evidence_status"] == "ambiguous"
+        _require_source_evidence(
+            allusion["expression"], paragraph_text, f"{allusion_path}.expression"
+        )
+        allusion_expressions.append(allusion["expression"])
+        for field in (
+            "contextual_meaning", "translation_constraint", "notes"
+        ):
+            _require_chinese_analysis_text(allusion[field], f"{allusion_path}.{field}")
+        if allusion["source_or_origin"] is not None:
+            _require_chinese_analysis_text(
+                allusion["source_or_origin"], f"{allusion_path}.source_or_origin"
+            )
+        for sense_index, sense in enumerate(allusion["competing_senses"]):
+            _require_chinese_analysis_text(
+                sense, f"{allusion_path}.competing_senses[{sense_index}]"
+            )
+
+    for expression in _required_cultural_allusions(paragraph_text):
+        if expression not in allusion_expressions:
+            raise AnalysisError(
+                f"source analysis field {path}.cultural_allusions omits known allusion {expression}"
+            )
+    preserved_text = "\n".join(analysis["must_preserve"])
+    for expression in allusion_expressions:
+        if expression not in preserved_text:
+            raise AnalysisError(
+                f"source analysis field {path}.must_preserve omits cultural allusion {expression}"
+            )
+
     for interpretation_index, interpretation in enumerate(
         analysis["competing_interpretations"]
     ):
@@ -1105,7 +1158,7 @@ def build_artifact(
 ) -> dict:
     project = inputs.project_document
     return {
-        "schema_version": 2,
+        "schema_version": 3,
         "project": {
             "project_id": project["project_id"].strip(),
             "title": _nullable_project_string(project, "title"),

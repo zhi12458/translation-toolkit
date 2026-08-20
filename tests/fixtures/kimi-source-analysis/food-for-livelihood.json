@@ -46,6 +46,7 @@
       {"kind": "inherited_subject", "expression": null, "predicate": "丧生", "role": "patient", "referent": "多少生命", "candidate_referents": ["多少生命"], "evidence": "多少生命在忍受痛苦，甚至丧生", "evidence_status": "contextual_inference", "notes": "丧生省略的主体承接多少生命。"}
     ],
     "elliptical_subject": [],
+    "cultural_allusions": [],
     "competing_interpretations": [
       {"interpretation": "得到食粮者与受苦、丧生的生命同指", "supporting_evidence": ["得到谋生的食粮", "多少生命"], "counterevidence": [], "evidence_status": "ambiguous"},
       {"interpretation": "得到食粮者为未明示的泛指人群，受苦、丧生者是为此付出代价的其他生命", "supporting_evidence": ["为了得到谋生的食粮", "多少生命在忍受痛苦，甚至丧生"], "counterevidence": [], "evidence_status": "ambiguous"}

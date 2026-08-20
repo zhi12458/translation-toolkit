@@ -285,7 +285,7 @@ def build_artifact(
     project = inputs.project_document
     nullable = shared._nullable_project_string
     return {
-        "schema_version": 2,
+        "schema_version": 3,
         "project": {
             "project_id": project["project_id"].strip(),
             "title": nullable(project, "title"),

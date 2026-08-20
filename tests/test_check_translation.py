@@ -106,7 +106,7 @@ class InputAndStructureTests(unittest.TestCase):
 
     def test_late_first_blocking_cycle_is_valid_even_after_clear_rounds(self):
         document = {
-            "schema_version": 2,
+            "schema_version": 3,
             "stage": "semantic_review",
             "provider": "deepseek",
             "model": "deepseek-v4-pro",
@@ -125,9 +125,11 @@ class InputAndStructureTests(unittest.TestCase):
                 "negation": "preserved",
                 "degree": "not_present",
                 "elliptical_subject": "not_present",
+                "cultural_allusions": "not_present",
                 "semantic_roles": "preserved",
                 "actor_or_state_holder": "本段角色已核对。",
                 "cause_or_instrument": "本段无相关原因或工具。",
+                "allusion_or_quotation": "本段无相关典故或引语。",
                 "finding_ids": [],
             }],
             "generated_at": "2026-08-13T00:00:00Z",
@@ -139,7 +141,7 @@ class InputAndStructureTests(unittest.TestCase):
 
     def test_clear_status_is_rejected_when_blockers_remain(self):
         document = {
-            "schema_version": 2,
+            "schema_version": 3,
             "stage": "semantic_review",
             "provider": "deepseek",
             "model": "deepseek-v4-pro",
@@ -158,9 +160,11 @@ class InputAndStructureTests(unittest.TestCase):
                 "negation": "finding",
                 "degree": "not_present",
                 "elliptical_subject": "not_present",
+                "cultural_allusions": "not_present",
                 "semantic_roles": "preserved",
                 "actor_or_state_holder": "本段角色已核对。",
                 "cause_or_instrument": "本段无相关原因或工具。",
+                "allusion_or_quotation": "本段无相关典故或引语。",
                 "finding_ids": ["finding-1"],
             }],
             "generated_at": "2026-08-13T00:00:00Z",
@@ -249,7 +253,7 @@ class CliStrictModeTests(unittest.TestCase):
                 findings_sha256 = hashlib.sha256(findings_path.read_bytes()).hexdigest()
                 (temp / "source-analysis.json").write_text(
                     json.dumps({
-                        "schema_version": 2,
+                        "schema_version": 3,
                         "project": {
                             "project_id": "test-project",
                             "title": "Test project",
@@ -286,6 +290,7 @@ class CliStrictModeTests(unittest.TestCase):
                             "operators": [],
                             "references_and_ellipsis": [],
                             "elliptical_subject": [],
+                            "cultural_allusions": [],
                             "competing_interpretations": [],
                             "must_preserve": ["保留空性的意义"],
                             "must_not_invent": ["不得擅增情态"],
@@ -296,7 +301,7 @@ class CliStrictModeTests(unittest.TestCase):
                 )
                 (temp / "semantic-review.json").write_text(
                     json.dumps({
-                        "schema_version": 2,
+                        "schema_version": 3,
                         "stage": "semantic_review",
                         "provider": "internal",
                         "model": "test-internal-reviewer",
@@ -315,9 +320,11 @@ class CliStrictModeTests(unittest.TestCase):
                             "negation": "preserved",
                             "degree": "not_present",
                             "elliptical_subject": "not_present",
+                            "cultural_allusions": "not_present",
                             "semantic_roles": "preserved",
                             "actor_or_state_holder": "本段状态承担者已核对。",
                             "cause_or_instrument": "本段无相关原因或工具。",
+                            "allusion_or_quotation": "本段无相关典故或引语。",
                             "finding_ids": [],
                         }],
                         "generated_at": "2026-08-12T00:00:00Z",

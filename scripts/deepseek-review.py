@@ -90,6 +90,7 @@ AUDIT_DIMENSIONS = (
     "negation",
     "degree",
     "elliptical_subject",
+    "cultural_allusions",
     "semantic_roles",
 )
 AUDIT_STATUSES = frozenset({"not_present", "preserved", "finding"})
@@ -99,6 +100,7 @@ REQUIRED_AUDIT_FIELDS = frozenset(
         *AUDIT_DIMENSIONS,
         "actor_or_state_holder",
         "cause_or_instrument",
+        "allusion_or_quotation",
         "finding_ids",
     }
 )
@@ -513,11 +515,12 @@ def build_prompt(
 3. 逐段分别核对时间/时体、条件、否定和程度关系，不得把其中任何一项并入笼统的“意义无误”。特别检查“时、后、才、已、仍、再”等是否在英文中保留其事件先后、持续、完成或重复约束。
 4. 时体与情态是否有依据；特别检查擅增 must、have to、could、should，或把普遍陈述改成过去事件。
 5. 遇到佛法格言、文言压缩句、对仗句和省略句，必须反向追问：“究竟是谁做或不做、谁处于该状态、为什么或凭什么如此？”分别核对施事者、原因、工具和状态承担者。不得为了保留中文对仗而把智慧、慈悲等原因或工具提升为英文主语。例如“智不住三有，悲不住涅槃”应核对不住者是佛陀所示范的修行者，智慧与慈悲说明其原因或凭借，而不是智慧与慈悲自身在安住或不安住。
-6. 是否有遗漏、增加、佛教术语错义、经文或教义歪曲。
+6. 独立识别并核对成语、格言、典故、经论引语、文言固定结构和历史文化指涉，检查译文是否保留本段实际采用的古义或语境义，而不是套用后起义、现代贬义或表面字典义。特别检查“独善其身”是否表达退隐后修养自身德行、保持节操，而非简单的自私自利。
+7. 是否有遗漏、增加、佛教术语错义、经文或教义歪曲。
 
 本阶段不做通用英文润色，不评价仅属偏好的文风、节奏、措辞或格式，也不直接决定最终英文表达。每个 suggestion 必须用中文写成“意义修正约束”（说明必须保留/不得增补的意义），不得给出可直接替换的英文句子。message、suggestion 和 summary 均须以中文表述。只报告真实、可核验的问题；译文准确时 findings 为空数组。只能报告 <review-focus-ids> 中列出的段落；<adjacent-context> 只用于消解指代，绝不能为它生成 finding。
 
-每个 review-focus 段落都必须产生一个 paragraph_audits 项，即使没有发现问题；六项检查必须分别填写。not_present 只表示原文没有该现象，preserved 表示原义已保留，finding 表示已生成对应 finding。actor_or_state_holder 与 cause_or_instrument 必须用中文简述逆向角色核对结论；没有相关省略或因果时明确写“无相关省略主语”或“无相关原因或工具”，不得留空。finding 状态必须列出本段对应的 finding_ids。
+每个 review-focus 段落都必须产生一个 paragraph_audits 项，即使没有发现问题；七项检查必须分别填写。not_present 只表示原文没有该现象，preserved 表示原义已保留，finding 表示已生成对应 finding。actor_or_state_holder、cause_or_instrument 与 allusion_or_quotation 必须用中文简述逆向核对结论；没有相关省略、因果或文化表达时分别明确写“无相关省略主语”“无相关原因或工具”或“无相关典故或引语”，不得留空。finding 状态必须列出本段对应的 finding_ids。
 
 最终必须在 message.content 返回单个 JSON 对象，不得使用 Markdown 围栏，不得返回空内容。对象必须严格且仅有以下结构：
 {{
@@ -541,9 +544,11 @@ def build_prompt(
       "negation": "not_present|preserved|finding",
       "degree": "not_present|preserved|finding",
       "elliptical_subject": "not_present|preserved|finding",
+      "cultural_allusions": "not_present|preserved|finding",
       "semantic_roles": "preserved|finding",
       "actor_or_state_holder": "用中文说明究竟是谁做、谁不做或谁承担状态",
       "cause_or_instrument": "用中文说明为什么或凭什么；没有则明确写无",
+      "allusion_or_quotation": "用中文说明典故、引语或文言固定结构的语境义；没有则明确写无",
       "finding_ids": []
     }}
   ],
@@ -781,7 +786,9 @@ def validate_review_content(
                     f"DeepSeek review {label}.semantic_roles cannot be not_present"
                 )
             normalized[dimension] = status
-        for note_field in ("actor_or_state_holder", "cause_or_instrument"):
+        for note_field in (
+            "actor_or_state_holder", "cause_or_instrument", "allusion_or_quotation"
+        ):
             note = _require_nonempty_string(audit[note_field], f"{label}.{note_field}")
             if not _contains_cjk(note):
                 raise ReviewError(
@@ -1224,7 +1231,7 @@ def build_semantic_certificate(
     else:
         status = "blocking"
     return {
-        "schema_version": 2,
+        "schema_version": 3,
         "stage": "semantic_review",
         "provider": PROVIDER,
         "model": model,

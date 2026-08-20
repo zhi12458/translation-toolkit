@@ -1,5 +1,5 @@
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "project": {
     "project_id": "minimal-mindfulness",
     "title": "正念练习",
@@ -37,6 +37,7 @@
       "operators": [],
       "references_and_ellipsis": [],
       "elliptical_subject": [],
+      "cultural_allusions": [],
       "competing_interpretations": [],
       "must_preserve": ["标题是正念练习"],
       "must_not_invent": ["不得把标题扩写成原文没有的修行步骤"],
@@ -111,6 +112,7 @@
       ],
       "references_and_ellipsis": [],
       "elliptical_subject": [],
+      "cultural_allusions": [],
       "competing_interpretations": [],
       "must_preserve": [
         "正念是帮助因素",

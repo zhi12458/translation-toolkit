@@ -17,7 +17,7 @@
     "paragraphs"
   ],
   "properties": {
-    "schema_version": {"type": "integer", "const": 2},
+    "schema_version": {"type": "integer", "const": 3},
     "project": {
       "type": "object",
       "additionalProperties": false,
@@ -153,6 +153,7 @@
           "operators",
           "references_and_ellipsis",
           "elliptical_subject",
+          "cultural_allusions",
           "competing_interpretations",
           "must_preserve",
           "must_not_invent",
@@ -528,6 +529,71 @@
                     }
                   }
                 },
+                "evidence_status": {
+                  "type": "string",
+                  "enum": ["explicit", "contextual_inference", "ambiguous"]
+                },
+                "notes": {"type": "string", "maxLength": 160}
+              }
+            }
+          },
+          "cultural_allusions": {
+            "type": "array",
+            "maxItems": 12,
+            "description": "单列成语、格言、典故、经论引语、文言固定结构和历史文化指涉。无此现象时为空数组；不得因术语表已有候选译法而省略。",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "expression",
+                "kind",
+                "source_or_origin",
+                "contextual_meaning",
+                "competing_senses",
+                "translation_constraint",
+                "research_trigger",
+                "external_research_required",
+                "evidence_status",
+                "notes"
+              ],
+              "properties": {
+                "expression": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 120,
+                  "description": "必须是当前段落中连续逐字出现的文化表达。"
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "idiom",
+                    "proverb",
+                    "classical_quotation",
+                    "canonical_allusion",
+                    "scriptural_quotation",
+                    "historical_reference",
+                    "fixed_classical_expression",
+                    "other"
+                  ]
+                },
+                "source_or_origin": {
+                  "anyOf": [
+                    {"type": "string", "minLength": 1, "maxLength": 120},
+                    {"type": "null"}
+                  ]
+                },
+                "contextual_meaning": {"type": "string", "minLength": 1, "maxLength": 180},
+                "competing_senses": {
+                  "type": "array",
+                  "maxItems": 4,
+                  "items": {"type": "string", "minLength": 1, "maxLength": 160}
+                },
+                "translation_constraint": {"type": "string", "minLength": 1, "maxLength": 180},
+                "research_trigger": {
+                  "type": "string",
+                  "enum": ["mpi_missing", "mpi_conflict", "context_ambiguity", "high_risk", "model_uncertain"]
+                },
+                "external_research_required": {"type": "boolean", "const": true},
                 "evidence_status": {
                   "type": "string",
                   "enum": ["explicit", "contextual_inference", "ambiguous"]

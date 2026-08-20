@@ -121,9 +121,11 @@ def valid_paragraph_audit(paragraph_id, finding_ids=None):
         "negation": status,
         "degree": "not_present",
         "elliptical_subject": "not_present",
+        "cultural_allusions": "not_present",
         "semantic_roles": "finding" if finding_ids else "preserved",
         "actor_or_state_holder": "本段主语和状态承担者已逐项核对。",
         "cause_or_instrument": "本段无相关原因或工具省略。",
+        "allusion_or_quotation": "本段无相关典故或引语。",
         "finding_ids": finding_ids,
     }
 
