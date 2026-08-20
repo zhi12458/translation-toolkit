@@ -132,7 +132,17 @@
           "enum": ["serial-local-window-with-full-coverage"]
         },
         "context_window_paragraphs": {"type": "integer", "minimum": 0},
-        "retry_limit": {"type": "integer", "minimum": 0}
+        "retry_limit": {"type": "integer", "minimum": 0},
+        "component_mode": {"type": "string", "enum": ["four-pass-merge"]},
+        "analysis_components": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "items": {
+            "type": "string",
+            "enum": ["core", "scope", "reference", "constraints"]
+          }
+        }
       },
       "allOf": [
         {

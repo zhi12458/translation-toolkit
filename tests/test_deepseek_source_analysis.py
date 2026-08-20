@@ -23,7 +23,7 @@ def test_json_mode_prompt_contains_exact_batch_schema_and_remains_blind(tmp_path
     inputs = MODULE.shared.load_project(project)
     schema = MODULE.shared.load_analysis_schema()
     batch = inputs.paragraphs[:1]
-    payload = MODULE.build_request_payload(inputs, batch, schema)
+    payload = MODULE.build_request_payload(inputs, batch, schema, "scope")
     serialized = json.dumps(payload, ensure_ascii=False)
     schema_message = payload["messages"][2]["content"]
 
@@ -34,10 +34,12 @@ def test_json_mode_prompt_contains_exact_batch_schema_and_remains_blind(tmp_path
     assert '"paragraphs"' in schema_message
     assert batch[0].paragraph_id in schema_message
     assert "顶层只能有 paragraphs" in schema_message
+    assert '"temporal_relations"' in schema_message
+    assert '"predicates"' not in schema_message
     assert "LEAKED_ENGLISH_CANARY" not in serialized
 
 
-def test_long_document_prompt_uses_complete_outline_local_window_and_relevant_terms(tmp_path):
+def test_long_document_prompt_uses_local_window_and_relevant_terms(tmp_path):
     project = tmp_path / "deepseek-window-test"
     project.mkdir()
     example = ROOT / "examples" / "minimal-article"
@@ -88,7 +90,7 @@ def test_long_document_prompt_uses_complete_outline_local_window_and_relevant_te
     inputs = MODULE.shared.load_project(project)
     schema = MODULE.shared.load_analysis_schema()
     batch = (inputs.paragraphs[3],)
-    payload = MODULE.build_request_payload(inputs, batch, schema)
+    payload = MODULE.build_request_payload(inputs, batch, schema, "constraints")
     serialized = json.dumps(payload, ensure_ascii=False)
     context = payload["messages"][1]["content"]
     schema_message = payload["messages"][2]["content"]
@@ -110,3 +112,39 @@ def test_deepseek_checkpoint_configuration_binds_window_strategy():
     assert config["context_window_paragraphs"] == MODULE.CONTEXT_WINDOW_PARAGRAPHS
     assert config["max_completion_tokens"] == MODULE.MAX_COMPLETION_TOKENS
     assert config["retry_limit"] == 5
+    assert config["component_mode"] == MODULE.COMPONENT_MODE
+    assert config["analysis_components"] == list(MODULE.COMPONENT_FIELDS)
+
+
+def test_component_validator_orders_coverage_and_rejects_unknown_fields(tmp_path):
+    project = tmp_path / "deepseek-component-test"
+    project.mkdir()
+    example = ROOT / "examples" / "minimal-article"
+    for name in ("source.dj", "translation-project.yaml", "term-map.yaml"):
+        (project / name).write_bytes((example / name).read_bytes())
+    inputs = MODULE.shared.load_project(project)
+    schema = MODULE.shared.load_analysis_schema()
+    batch = inputs.paragraphs
+    document = {
+        "paragraphs": [
+            {"paragraph_id": paragraph.paragraph_id, "temporal_relations": [], "operators": []}
+            for paragraph in reversed(batch)
+        ]
+    }
+
+    validated = MODULE.validate_component_content(
+        json.dumps(document, ensure_ascii=False), batch, schema, "scope"
+    )
+
+    assert [item["paragraph_id"] for item in validated] == [
+        paragraph.paragraph_id for paragraph in batch
+    ]
+    document["paragraphs"][0]["unexpected"] = True
+    try:
+        MODULE.validate_component_content(
+            json.dumps(document, ensure_ascii=False), batch, schema, "scope"
+        )
+    except MODULE.AnalysisError:
+        pass
+    else:
+        raise AssertionError("unknown component fields must be rejected")

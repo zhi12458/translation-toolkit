@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import copy
 from datetime import datetime, timezone
 import getpass
 import importlib.util
@@ -34,6 +35,25 @@ MAX_COMPLETION_TOKENS = 8192
 MAX_PROVIDER_RESPONSE_BYTES = 16 * 1024 * 1024
 CONTEXT_MODE = "serial-local-window-with-full-coverage"
 CONTEXT_WINDOW_PARAGRAPHS = 3
+COMPONENT_MODE = "four-pass-merge"
+COMPONENT_FIELDS = {
+    "core": ("predicates", "relations"),
+    "scope": ("temporal_relations", "operators"),
+    "reference": ("references_and_ellipsis", "elliptical_subject"),
+    "constraints": (
+        "cultural_allusions",
+        "competing_interpretations",
+        "must_preserve",
+        "must_not_invent",
+        "status",
+    ),
+}
+COMPONENT_INSTRUCTIONS = {
+    "core": """只生成 predicates 和 relations。选择最多八个最可能影响翻译的实义谓词，区分 agent、experiencer、patient、theme、cause、instrument、state_holder 等角色；原文未明示的参与者必须为 null，不能概括成人们或众生。关系证据必须逐字来自当前段落。""",
+    "scope": """只生成 temporal_relations 和 operators。逐项识别时间先后、时点、持续、完成、重复，以及时、后、才、已、仍、再等标记；同时分析否定、数量、程度、情态和体的作用域。marker 必须逐字来自当前段落。""",
+    "reference": """只生成 references_and_ellipsis 和 elliptical_subject。分析指代、承前主语和省略；格言、文言压缩句、对仗句必须反问谁行动或承担状态，并分开 agent、state_holder、cause、instrument。智不住三有，悲不住涅槃中的修行者承担不住的状态，智慧与慈悲是原因或凭借，不能提升为英文主语。""",
+    "constraints": """只生成 cultural_allusions、competing_interpretations、must_preserve、must_not_invent 和 status。must_preserve 必须逐字包含本段所有时间时体标记及每个 cultural_allusions.expression。成语、格言、经论引语、文言固定结构和历史指涉都必须列入 cultural_allusions，external_research_required 固定为 true。独善其身必须区分孟子语境的修养守志与后起的自私贬义。任何竞争解释未决时 status 为 needs_human。""",
+}
 
 
 def _load_shared():
@@ -84,14 +104,52 @@ def load_credential(environ: Mapping[str, str] | None = None) -> Credential:
     return Credential(key, f"macOS Keychain ({KEYCHAIN_SERVICE}/{account})")
 
 
-def build_request_payload(inputs, batch, schema_document: dict) -> dict:
-    system_prompt, context_prompt, batch_prompt = shared.build_windowed_prompt(
+def build_component_schema(
+    schema_document: dict, paragraph_ids: Sequence[str], component: str
+) -> dict:
+    if component not in COMPONENT_FIELDS:
+        raise AnalysisError("unknown DeepSeek source-analysis component")
+    paragraph_source = schema_document["properties"]["paragraphs"]["items"]
+    fields = ("paragraph_id", *COMPONENT_FIELDS[component])
+    paragraph_schema = {
+        "type": "object",
+        "additionalProperties": False,
+        "required": list(fields),
+        "properties": {
+            field: copy.deepcopy(paragraph_source["properties"][field])
+            for field in fields
+        },
+    }
+    paragraph_schema["properties"]["paragraph_id"] = {
+        "type": "string",
+        "enum": list(paragraph_ids),
+    }
+    return shared._mfjs_wire_schema(
+        {
+            "type": "object",
+            "additionalProperties": False,
+            "required": ["paragraphs"],
+            "properties": {
+                "paragraphs": {"type": "array", "items": paragraph_schema}
+            },
+        }
+    )
+
+
+def build_request_payload(inputs, batch, schema_document: dict, component: str) -> dict:
+    _unused_system, context_prompt, batch_prompt = shared.build_windowed_prompt(
         inputs,
         batch,
         context_window_paragraphs=CONTEXT_WINDOW_PARAGRAPHS,
     )
     paragraph_ids = [paragraph.paragraph_id for paragraph in batch]
-    provider_schema = shared.build_provider_schema(schema_document, paragraph_ids)
+    provider_schema = build_component_schema(schema_document, paragraph_ids, component)
+    system_prompt = f"""你是资深中文语义分析员，负责为中英佛法翻译建立盲态源义框架。你不是译者，不得生成英文初稿或改写原文。只依据给出的中文窗口、项目背景和相关术语；所有自由文本用中文，所有 evidence、marker、expression 和 clause 必须逐字复制对应当前段落。没有相关现象时输出空数组，不得虚构。
+
+本次组件：{component}
+{COMPONENT_INSTRUCTIONS[component]}
+
+只返回严格符合所给 JSON Schema 的原生 JSON 对象，不得包裹 Markdown。"""
     schema_prompt = """必须严格按照下面的 JSON Schema 返回。顶层只能有 paragraphs，不能添加 analysis、summary、metadata、schema_version 或其他字段。
 <required-json-schema>
 """ + json.dumps(provider_schema, ensure_ascii=False, separators=(",", ":")) + """
@@ -112,9 +170,17 @@ def build_request_payload(inputs, batch, schema_document: dict) -> dict:
     }
 
 
-def request_batch(inputs, batch, schema_document: dict, credential: Credential, timeout: float) -> str:
+def request_component(
+    inputs,
+    batch,
+    schema_document: dict,
+    component: str,
+    credential: Credential,
+    timeout: float,
+) -> str:
     body = json.dumps(
-        build_request_payload(inputs, batch, schema_document), ensure_ascii=False
+        build_request_payload(inputs, batch, schema_document, component),
+        ensure_ascii=False,
     ).encode("utf-8")
     request = urllib.request.Request(
         API_URL,
@@ -156,6 +222,73 @@ def request_batch(inputs, batch, schema_document: dict, credential: Credential, 
     return content
 
 
+def validate_component_content(
+    content: str,
+    batch,
+    schema_document: dict,
+    component: str,
+) -> list[dict]:
+    try:
+        document = json.loads(content)
+    except json.JSONDecodeError as exc:
+        raise AnalysisError("DeepSeek source-analysis component is not valid JSON") from exc
+    expected_ids = [paragraph.paragraph_id for paragraph in batch]
+    component_schema = build_component_schema(
+        schema_document, expected_ids, component
+    )
+    shared._validate_instance(document, component_schema)
+    paragraphs = document["paragraphs"]
+    actual_ids = [paragraph["paragraph_id"] for paragraph in paragraphs]
+    if len(actual_ids) != len(set(actual_ids)) or set(actual_ids) != set(expected_ids):
+        raise AnalysisError(
+            "DeepSeek source-analysis component has invalid paragraph coverage"
+        )
+    by_id = {paragraph["paragraph_id"]: paragraph for paragraph in paragraphs}
+    return [by_id[paragraph_id] for paragraph_id in expected_ids]
+
+
+def _contains_ambiguous_status(value: object) -> bool:
+    if isinstance(value, dict):
+        if value.get("evidence_status") == "ambiguous":
+            return True
+        return any(_contains_ambiguous_status(item) for item in value.values())
+    if isinstance(value, list):
+        return any(_contains_ambiguous_status(item) for item in value)
+    return False
+
+
+def analyze_batch(
+    inputs,
+    batch,
+    schema_document: dict,
+    credential: Credential,
+    timeout: float,
+) -> list[dict]:
+    merged = {
+        paragraph.paragraph_id: {"paragraph_id": paragraph.paragraph_id}
+        for paragraph in batch
+    }
+    for component in COMPONENT_FIELDS:
+        content = request_component(
+            inputs, batch, schema_document, component, credential, timeout
+        )
+        partials = validate_component_content(
+            content, batch, schema_document, component
+        )
+        for partial in partials:
+            paragraph_id = partial.pop("paragraph_id")
+            merged[paragraph_id].update(partial)
+    for analysis in merged.values():
+        if _contains_ambiguous_status(analysis):
+            analysis["status"] = "needs_human"
+    combined = json.dumps(
+        {"paragraphs": list(merged.values())}, ensure_ascii=False
+    )
+    return shared.validate_batch_content(
+        combined, batch, schema_document, inputs.source
+    )
+
+
 def configuration(batch_size: int, timeout: float, retries: int) -> dict:
     return {
         "provider": PROVIDER,
@@ -169,6 +302,8 @@ def configuration(batch_size: int, timeout: float, retries: int) -> dict:
         "retry_limit": retries,
         "context_mode": CONTEXT_MODE,
         "context_window_paragraphs": CONTEXT_WINDOW_PARAGRAPHS,
+        "component_mode": COMPONENT_MODE,
+        "analysis_components": list(COMPONENT_FIELDS),
     }
 
 
@@ -198,7 +333,8 @@ def build_artifact(
             "strict": False,
             "serial": True,
             "batch_size": batch_size,
-            "request_count": len(shared._batches(inputs.paragraphs, batch_size)),
+            "request_count": len(shared._batches(inputs.paragraphs, batch_size))
+            * len(COMPONENT_FIELDS),
             "timeout_seconds": timeout,
             "max_completion_tokens": MAX_COMPLETION_TOKENS,
             "retry_limit": retries,
@@ -208,6 +344,8 @@ def build_artifact(
             "rate_limit_tpm": None,
             "context_mode": CONTEXT_MODE,
             "context_window_paragraphs": CONTEXT_WINDOW_PARAGRAPHS,
+            "component_mode": COMPONENT_MODE,
+            "analysis_components": list(COMPONENT_FIELDS),
         },
         "generated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         "paragraphs": list(analyses),
@@ -246,11 +384,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
         if args.dry_run:
             for batch in batches:
-                payload = build_request_payload(inputs, batch, schema_document)
-                if payload["model"] != MODEL:
-                    raise AnalysisError("generated DeepSeek request is invalid")
+                for component in COMPONENT_FIELDS:
+                    payload = build_request_payload(
+                        inputs, batch, schema_document, component
+                    )
+                    if payload["model"] != MODEL:
+                        raise AnalysisError("generated DeepSeek request is invalid")
             print(
-                f"Dry run OK: {len(inputs.paragraphs)} source paragraphs in {len(batches)} serial DeepSeek batches; no credential read and no request sent."
+                f"Dry run OK: {len(inputs.paragraphs)} source paragraphs in {len(batches)} serial DeepSeek batches and {len(COMPONENT_FIELDS)} components; no credential read and no request sent."
             )
             return 0
         credential = load_credential()
@@ -268,8 +409,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             last_error: AnalysisError | None = None
             for attempt in range(args.retries + 1):
                 try:
-                    content = request_batch(inputs, batch, schema_document, credential, args.timeout)
-                    validated = shared.validate_batch_content(content, batch, schema_document, inputs.source)
+                    validated = analyze_batch(
+                        inputs, batch, schema_document, credential, args.timeout
+                    )
                     break
                 except AnalysisError as exc:
                     last_error = exc
