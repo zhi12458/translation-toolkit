@@ -12,6 +12,7 @@ import json
 import math
 import os
 from pathlib import Path
+import re
 import socket
 import ssl
 import subprocess
@@ -132,6 +133,16 @@ class DeepSeekHTTPError(DeepSeekTransientError):
     """A retryable HTTP status without a provider response body."""
 
     diagnostic_code = "deepseek_http_transient"
+
+
+class DeepSeekDeterministicValidationError(AnalysisError):
+    """A provider-body-free description of a deterministic local gate failure."""
+
+    diagnostic_code = "deepseek_source_analysis_validation"
+
+    def __init__(self, **metadata: str):
+        super().__init__("DeepSeek source analysis failed deterministic validation")
+        self.diagnostic_metadata = metadata
 
 
 class ComponentAnalysisError(AnalysisError):
@@ -384,6 +395,14 @@ def transient_cause(exc: BaseException) -> DeepSeekTransientError | None:
 
 
 def safe_diagnostic(exc: BaseException) -> dict | None:
+    for item in _walk_error_chain(exc):
+        if isinstance(item, DeepSeekDeterministicValidationError):
+            return {
+                "schema_version": 1,
+                "code": item.diagnostic_code,
+                "retryable": False,
+                **item.diagnostic_metadata,
+            }
     transient = transient_cause(exc)
     if transient is None:
         return None
@@ -411,6 +430,53 @@ def safe_diagnostic(exc: BaseException) -> dict | None:
         if isinstance(value, (str, int)) and not isinstance(value, bool):
             diagnostic[key] = value
     return diagnostic
+
+
+_VALIDATION_FIELD_RE = re.compile(
+    r"^source analysis field \$\.paragraphs\[(L[1-9][0-9]*)\]"
+    r"(?:\.([a-z_]+(?:\[[0-9]+\])?(?:\.[a-z_]+(?:\[[0-9]+\])?)*))? "
+)
+_VALIDATION_CATEGORIES = (
+    ("has too many items", "item_limit"),
+    ("is too short", "minimum_length"),
+    ("is too long", "maximum_length"),
+    ("has an invalid format", "invalid_format"),
+    ("is below its minimum", "minimum_value"),
+    ("is not above its exclusive minimum", "exclusive_minimum"),
+    ("is not verbatim source evidence", "nonverbatim_evidence"),
+    ("must be Chinese analytical text", "analysis_language"),
+    ("cannot mark a null participant explicit", "null_explicit_participant"),
+    ("cannot mark a null referent explicit", "null_explicit_referent"),
+    ("lacks evidence for an explicit role", "explicit_role_evidence"),
+    ("lacks evidence for an explicit relation", "explicit_relation_evidence"),
+    ("lacks a marker for an explicit operator", "explicit_operator_marker"),
+    ("lacks evidence for an explicit reference", "explicit_reference_evidence"),
+    ("is not supported by its own evidence", "participant_evidence_support"),
+    ("omits source marker", "temporal_relation_coverage"),
+    ("omits temporal marker", "temporal_preservation_coverage"),
+    ("promotes an explicit cause", "causal_role_promotion"),
+    ("must identify an agent or state_holder", "actor_state_holder_coverage"),
+    ("omits a compressed parallel clause", "compressed_clause_coverage"),
+    ("does not separate cause or instrument", "causal_role_separation"),
+    ("omits known allusion", "known_allusion_coverage"),
+    ("omits cultural allusion", "allusion_preservation_coverage"),
+)
+
+
+def deterministic_validation_metadata(exc: AnalysisError) -> dict[str, str] | None:
+    """Reduce a local validation error to allowlisted structural metadata."""
+    message = str(exc)
+    match = _VALIDATION_FIELD_RE.match(message)
+    if match is None:
+        return None
+    category = next(
+        (code for fragment, code in _VALIDATION_CATEGORIES if fragment in message),
+        "field_validation",
+    )
+    metadata = {"paragraph_id": match.group(1), "category": category}
+    if match.group(2) is not None:
+        metadata["field"] = match.group(2)
+    return metadata
 
 
 def validate_component_content(
@@ -528,9 +594,15 @@ def analyze_batch(
     combined = json.dumps(
         {"paragraphs": list(merged.values())}, ensure_ascii=False
     )
-    return shared.validate_batch_content(
-        combined, batch, schema_document, inputs.source
-    )
+    try:
+        return shared.validate_batch_content(
+            combined, batch, schema_document, inputs.source
+        )
+    except AnalysisError as exc:
+        metadata = deterministic_validation_metadata(exc)
+        if metadata is None:
+            raise
+        raise DeepSeekDeterministicValidationError(**metadata) from exc
 
 
 def request_validated_component(
@@ -596,7 +668,11 @@ def analyze_batch_with_transient_recovery(
             )
         except AnalysisError as exc:
             diagnostic = safe_diagnostic(exc)
-            if diagnostic is None or attempt >= transient_batch_retry_limit:
+            if (
+                diagnostic is None
+                or diagnostic.get("retryable") is not True
+                or attempt >= transient_batch_retry_limit
+            ):
                 raise
             paragraph_ids = ",".join(item.paragraph_id for item in batch)
             print(

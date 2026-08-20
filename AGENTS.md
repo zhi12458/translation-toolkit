@@ -524,6 +524,10 @@ regenerating the same Python in execute_code each turn.
   is deterministically included in the same paragraph's `must_preserve` list
   before the complete v3 object passes full-source validation. This
   reconciliation adds no inferred meaning and emits no source text to logs.
+  If the final local validator still rejects the merged object, the tool emits
+  a non-retryable diagnostic containing only a fixed error code, paragraph ID,
+  schema field path, and allowlisted category. Source text, evidence values,
+  provider bodies, and reasoning remain excluded.
 - `toolkit/scripts/freeze-target.py <source.dj> <sol-draft.dj> --output
   <target.dj>` — validate line and blank-line alignment, then atomically freeze
   Sol's English as the canonical target.

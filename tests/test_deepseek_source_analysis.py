@@ -218,6 +218,70 @@ def test_reconciled_temporal_marker_passes_strong_batch_validation():
     assert validated[0]["must_preserve"][-1] == "才"
 
 
+def test_deterministic_validation_diagnostic_exposes_only_structure():
+    original = MODULE.AnalysisError(
+        "source analysis field $.paragraphs[L45].predicates[2].participants[0].participant "
+        "is not supported by its own evidence"
+    )
+    metadata = MODULE.deterministic_validation_metadata(original)
+    wrapped = MODULE.DeepSeekDeterministicValidationError(**metadata)
+    wrapped.__cause__ = original
+
+    assert MODULE.safe_diagnostic(wrapped) == {
+        "schema_version": 1,
+        "code": "deepseek_source_analysis_validation",
+        "retryable": False,
+        "paragraph_id": "L45",
+        "field": "predicates[2].participants[0].participant",
+        "category": "participant_evidence_support",
+    }
+    assert "evidence" not in str(wrapped)
+    assert "participant" not in str(wrapped)
+
+
+def test_deterministic_validation_is_never_retried(tmp_path, monkeypatch):
+    project = tmp_path / "deepseek-deterministic-validation"
+    project.mkdir()
+    example = ROOT / "examples" / "minimal-article"
+    for name in ("source.dj", "translation-project.yaml", "term-map.yaml"):
+        (project / name).write_bytes((example / name).read_bytes())
+    inputs = MODULE.shared.load_project(project)
+    schema = MODULE.shared.load_analysis_schema()
+    batch = inputs.paragraphs[:1]
+    calls = []
+
+    def fake_analyze(*args):
+        calls.append(args[1])
+        raise MODULE.DeepSeekDeterministicValidationError(
+            paragraph_id=batch[0].paragraph_id,
+            field="must_preserve",
+            category="temporal_preservation_coverage",
+        )
+
+    monkeypatch.setattr(MODULE, "analyze_batch", fake_analyze)
+    monkeypatch.setattr(
+        MODULE.time,
+        "sleep",
+        lambda _seconds: (_ for _ in ()).throw(AssertionError("must not retry")),
+    )
+
+    try:
+        MODULE.analyze_batch_with_transient_recovery(
+            inputs,
+            batch,
+            schema,
+            MODULE.Credential("not-used", "test"),
+            30.0,
+            1,
+        )
+    except MODULE.DeepSeekDeterministicValidationError:
+        pass
+    else:
+        raise AssertionError("deterministic validation error must propagate")
+
+    assert calls == [batch]
+
+
 def test_component_validator_orders_coverage_and_rejects_unknown_fields(tmp_path):
     project = tmp_path / "deepseek-component-test"
     project.mkdir()
