@@ -519,7 +519,11 @@ regenerating the same Python in execute_code each turn.
   provider envelope. Other validation failures keep the capped request. Each
   component gets at most five technical retries without discarding other
   components that already passed in the current batch; exhausted batch retries
-  fall back to one paragraph at a time under the same gates.
+  fall back to one paragraph at a time under the same gates. After all seven
+  independently validated components merge, every validated temporal marker
+  is deterministically included in the same paragraph's `must_preserve` list
+  before the complete v3 object passes full-source validation. This
+  reconciliation adds no inferred meaning and emits no source text to logs.
 - `toolkit/scripts/freeze-target.py <source.dj> <sol-draft.dj> --output
   <target.dj>` — validate line and blank-line alignment, then atomically freeze
   Sol's English as the canonical target.

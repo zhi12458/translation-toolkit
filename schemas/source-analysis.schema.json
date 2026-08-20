@@ -150,6 +150,10 @@
           "type": "integer",
           "minimum": 0
         },
+        "cross_component_reconciliation_mode": {
+          "type": "string",
+          "enum": ["union-validated-temporal-markers-into-must-preserve"]
+        },
         "analysis_components": {
           "type": "array",
           "minItems": 7,

@@ -42,6 +42,9 @@ COMPONENT_MODE = "seven-pass-merge"
 COMPONENT_FALLBACK_MODE = "single-paragraph-after-batch-retries"
 COMPLETION_RECOVERY_MODE = "omit-max-completion-tokens-after-empty-or-length"
 TRANSIENT_BATCH_RECOVERY_MODE = "retry-same-batch-after-exhausted-transient-component"
+CROSS_COMPONENT_RECONCILIATION_MODE = (
+    "union-validated-temporal-markers-into-must-preserve"
+)
 COMPONENT_FIELDS = {
     "core": ("predicates", "relations"),
     "temporal": ("temporal_relations",),
@@ -445,6 +448,19 @@ def _contains_ambiguous_status(value: object) -> bool:
     return False
 
 
+def reconcile_temporal_markers(analyses: Sequence[dict]) -> int:
+    """Preserve validated temporal markers across independently generated fields."""
+    added = 0
+    for analysis in analyses:
+        must_preserve = analysis["must_preserve"]
+        for relation in analysis["temporal_relations"]:
+            marker = relation["marker"]
+            if not any(marker in item for item in must_preserve):
+                must_preserve.append(marker)
+                added += 1
+    return added
+
+
 def analyze_batch(
     inputs,
     batch,
@@ -508,6 +524,7 @@ def analyze_batch(
     for analysis in merged.values():
         if _contains_ambiguous_status(analysis):
             analysis["status"] = "needs_human"
+    reconcile_temporal_markers(list(merged.values()))
     combined = json.dumps(
         {"paragraphs": list(merged.values())}, ensure_ascii=False
     )
@@ -655,6 +672,9 @@ def build_artifact(
             "completion_recovery_mode": COMPLETION_RECOVERY_MODE,
             "transient_batch_recovery_mode": TRANSIENT_BATCH_RECOVERY_MODE,
             "transient_batch_retry_limit": TRANSIENT_BATCH_RETRY_LIMIT,
+            "cross_component_reconciliation_mode": (
+                CROSS_COMPONENT_RECONCILIATION_MODE
+            ),
             "analysis_components": list(COMPONENT_FIELDS),
             "component_context_windows": COMPONENT_CONTEXT_WINDOWS,
         },

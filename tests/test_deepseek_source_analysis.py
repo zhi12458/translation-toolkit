@@ -117,6 +117,7 @@ def test_deepseek_checkpoint_configuration_binds_window_strategy():
     assert config["completion_recovery_mode"] == MODULE.COMPLETION_RECOVERY_MODE
     assert "transient_batch_recovery_mode" not in config
     assert "transient_batch_retry_limit" not in config
+    assert "cross_component_reconciliation_mode" not in config
     assert config["analysis_components"] == list(MODULE.COMPONENT_FIELDS)
     assert config["component_context_windows"] == MODULE.COMPONENT_CONTEXT_WINDOWS
 
@@ -141,6 +142,80 @@ def test_final_artifact_records_transient_batch_recovery(tmp_path):
     assert config["transient_batch_retry_limit"] == (
         MODULE.TRANSIENT_BATCH_RETRY_LIMIT
     )
+    assert config["cross_component_reconciliation_mode"] == (
+        MODULE.CROSS_COMPONENT_RECONCILIATION_MODE
+    )
+    MODULE.shared._validate_instance(
+        artifact, MODULE.shared.load_analysis_schema()
+    )
+
+
+def test_reconcile_temporal_markers_is_deterministic_and_idempotent():
+    analyses = [
+        {
+            "paragraph_id": "L1",
+            "temporal_relations": [
+                {"marker": "先"},
+                {"marker": "才"},
+                {"marker": "后"},
+            ],
+            "must_preserve": ["先说明条件", "保留原有约束"],
+        }
+    ]
+
+    assert MODULE.reconcile_temporal_markers(analyses) == 2
+    assert analyses[0]["must_preserve"] == [
+        "先说明条件",
+        "保留原有约束",
+        "才",
+        "后",
+    ]
+    assert MODULE.reconcile_temporal_markers(analyses) == 0
+
+
+def test_reconciled_temporal_marker_passes_strong_batch_validation():
+    source = "条件具足，才会结果。"
+    paragraph = MODULE.shared.SourceParagraph("L1", source)
+    analysis = {
+        "paragraph_id": "L1",
+        "predicates": [
+            {
+                "predicate": "结果",
+                "canonical_meaning": "条件具足后出现结果",
+                "evidence": "结果",
+                "participants": [],
+            }
+        ],
+        "relations": [],
+        "temporal_relations": [
+            {
+                "marker": "才",
+                "relation": "after",
+                "event_or_scope": "条件具足之后出现结果",
+                "linked_event": "条件具足",
+                "evidence_status": "explicit",
+                "notes": "才表示结果以条件具足为前提。",
+            }
+        ],
+        "operators": [],
+        "references_and_ellipsis": [],
+        "elliptical_subject": [],
+        "cultural_allusions": [],
+        "competing_interpretations": [],
+        "must_preserve": ["保留条件与结果的关系"],
+        "must_not_invent": ["不得增加原文没有的条件"],
+        "status": "clear",
+    }
+
+    assert MODULE.reconcile_temporal_markers([analysis]) == 1
+    validated = MODULE.shared.validate_batch_content(
+        json.dumps({"paragraphs": [analysis]}, ensure_ascii=False),
+        [paragraph],
+        MODULE.shared.load_analysis_schema(),
+        source,
+    )
+
+    assert validated[0]["must_preserve"][-1] == "才"
 
 
 def test_component_validator_orders_coverage_and_rejects_unknown_fields(tmp_path):
