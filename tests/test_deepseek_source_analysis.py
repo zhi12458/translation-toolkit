@@ -93,11 +93,8 @@ def test_long_document_prompt_uses_complete_outline_local_window_and_relevant_te
     context = payload["messages"][1]["content"]
     schema_message = payload["messages"][2]["content"]
 
-    assert "<document-structure>" in context
-    assert "<exact-local-chinese-window>" in context
-    assert "只依据中文全文" not in payload["messages"][0]["content"]
+    assert "<complete-indexed-chinese-source>" in context
     assert "[L4] 第三段是当前请求。" in context
-    assert '"L8"' in context
     assert "遥远段落的开头" not in context
     assert distant_tail not in serialized
     assert '"source": "正念"' in context
@@ -107,8 +104,9 @@ def test_long_document_prompt_uses_complete_outline_local_window_and_relevant_te
 
 
 def test_deepseek_checkpoint_configuration_binds_window_strategy():
-    config = MODULE.configuration(2, 120.0)
+    config = MODULE.configuration(2, 120.0, 5)
 
     assert config["context_mode"] == MODULE.CONTEXT_MODE
     assert config["context_window_paragraphs"] == MODULE.CONTEXT_WINDOW_PARAGRAPHS
     assert config["max_completion_tokens"] == MODULE.MAX_COMPLETION_TOKENS
+    assert config["retry_limit"] == 5

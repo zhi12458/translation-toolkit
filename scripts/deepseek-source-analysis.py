@@ -29,10 +29,10 @@ ENVIRONMENT_VARIABLE = "DEEPSEEK_API_KEY"
 KEYCHAIN_SERVICE = "mpi-deepseek-review"
 DEFAULT_BATCH_SIZE = 4
 DEFAULT_TIMEOUT_SECONDS = 300.0
-DEFAULT_RETRIES = 2
+DEFAULT_RETRIES = 5
 MAX_COMPLETION_TOKENS = 8192
 MAX_PROVIDER_RESPONSE_BYTES = 16 * 1024 * 1024
-CONTEXT_MODE = "complete-id-heading-structure-plus-local-window"
+CONTEXT_MODE = "serial-local-window-with-full-coverage"
 CONTEXT_WINDOW_PARAGRAPHS = 3
 
 
@@ -156,7 +156,7 @@ def request_batch(inputs, batch, schema_document: dict, credential: Credential, 
     return content
 
 
-def configuration(batch_size: int, timeout: float) -> dict:
+def configuration(batch_size: int, timeout: float, retries: int) -> dict:
     return {
         "provider": PROVIDER,
         "model": MODEL,
@@ -166,12 +166,15 @@ def configuration(batch_size: int, timeout: float) -> dict:
         "timeout_seconds": timeout,
         "response_format": "json_object",
         "max_completion_tokens": MAX_COMPLETION_TOKENS,
+        "retry_limit": retries,
         "context_mode": CONTEXT_MODE,
         "context_window_paragraphs": CONTEXT_WINDOW_PARAGRAPHS,
     }
 
 
-def build_artifact(inputs, analyses: Sequence[dict], batch_size: int, timeout: float) -> dict:
+def build_artifact(
+    inputs, analyses: Sequence[dict], batch_size: int, timeout: float, retries: int
+) -> dict:
     project = inputs.project_document
     nullable = shared._nullable_project_string
     return {
@@ -198,6 +201,7 @@ def build_artifact(inputs, analyses: Sequence[dict], batch_size: int, timeout: f
             "request_count": len(shared._batches(inputs.paragraphs, batch_size)),
             "timeout_seconds": timeout,
             "max_completion_tokens": MAX_COMPLETION_TOKENS,
+            "retry_limit": retries,
             "rate_limit_tier": None,
             "rate_limit_concurrency": 1,
             "rate_limit_rpm": None,
@@ -251,7 +255,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             return 0
         credential = load_credential()
         checkpoint_path = shared._checkpoint_path(Path(output))
-        run_configuration = configuration(args.batch_size, args.timeout)
+        run_configuration = configuration(args.batch_size, args.timeout, args.retries)
         analyses, completed_count = shared._load_checkpoint(
             checkpoint_path, inputs, batches, schema_document, run_configuration
         )
@@ -283,7 +287,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         expected_ids = [item.paragraph_id for item in inputs.paragraphs]
         if [item["paragraph_id"] for item in analyses] != expected_ids:
             raise AnalysisError("merged DeepSeek source analysis has invalid coverage")
-        artifact = build_artifact(inputs, analyses, args.batch_size, args.timeout)
+        artifact = build_artifact(
+            inputs, analyses, args.batch_size, args.timeout, args.retries
+        )
         shared.assert_inputs_unchanged(inputs)
         shared.atomic_write_json(Path(output), artifact, schema_document)
         checkpoint_path.unlink(missing_ok=True)

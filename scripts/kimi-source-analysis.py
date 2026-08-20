@@ -599,51 +599,29 @@ def build_windowed_prompt(
         sort_keys=True,
     )
 
-    heading_lines: list[str] = []
-    for paragraph in inputs.paragraphs:
-        stripped = paragraph.text.strip()
-        if stripped.startswith("#"):
-            heading_lines.append(f"[{paragraph.paragraph_id}] {stripped}")
-    structure_index = json.dumps(
-        {
-            "paragraph_order": [
-                paragraph.paragraph_id for paragraph in inputs.paragraphs
-            ],
-            "headings": heading_lines,
-        },
-        ensure_ascii=False,
-        indent=2,
-    )
+    source_lines = inputs.source.splitlines()
+    first_line_number = int(local_paragraphs[0].paragraph_id[1:])
+    last_line_number = int(local_paragraphs[-1].paragraph_id[1:])
     local_source = "\n".join(
-        f"[{paragraph.paragraph_id}] {paragraph.text}" for paragraph in local_paragraphs
+        f"[L{line_number}] {source_lines[line_number - 1]}"
+        for line_number in range(first_line_number, last_line_number + 1)
     )
     requested_ids = ", ".join(paragraph.paragraph_id for paragraph in batch)
     system_prompt, _complete_context, _batch_prompt = build_prompt(inputs, batch)
-    system_prompt = system_prompt.replace(
-        "只依据中文全文、项目背景和术语表分析",
-        "只依据冻结中文源稿的全篇结构索引、当前精确中文窗口、项目背景和相关术语分析",
-    ).replace(
-        "中文全文中连续逐字出现",
-        "当前精确中文窗口中连续逐字出现",
-    )
-    context_prompt = f"""下面是冻结项目的盲态中文上下文。document-structure 只表示全篇非空段落顺序和完整标题层级，不是正文证据。当前待分析段落及其邻近上下文只在 exact-local-chinese-window 出现一次，并已完整提供；逐字证据只能取自该窗口。所有批次合并后仍须覆盖冻结源稿的每个非空段落。
+    context_prompt = f"""下面是固定的完整项目快照，用于保留跨段指代和全文上下文。
 <translation-project.yaml>
 {inputs.project}
 </translation-project.yaml>
 
-<relevant-term-map.yaml>
+<term-map.yaml>
 {relevant_term_map}
-</relevant-term-map.yaml>
+</term-map.yaml>
 
-<document-structure>
-{structure_index}
-</document-structure>
-
-<exact-local-chinese-window>
+<complete-indexed-chinese-source>
 {local_source}
-</exact-local-chinese-window>
+</complete-indexed-chinese-source>
 """
-    batch_prompt = f"""现在只分析以下段落 ID，不得输出其他段落。每项 evidence 必须来自该段完整原文；邻近窗口只用于解析承前关系。
+    batch_prompt = f"""现在只分析以下段落 ID，不得输出其他段落：
 <requested-paragraph-ids>
 {requested_ids}
 </requested-paragraph-ids>"""

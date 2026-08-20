@@ -129,9 +129,10 @@
         },
         "context_mode": {
           "type": "string",
-          "enum": ["complete-id-heading-structure-plus-local-window"]
+          "enum": ["serial-local-window-with-full-coverage"]
         },
-        "context_window_paragraphs": {"type": "integer", "minimum": 0}
+        "context_window_paragraphs": {"type": "integer", "minimum": 0},
+        "retry_limit": {"type": "integer", "minimum": 0}
       },
       "allOf": [
         {
