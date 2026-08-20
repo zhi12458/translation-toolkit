@@ -78,8 +78,10 @@ def make_project(tmp_path):
                 }
             ],
             "relations": [],
+            "temporal_relations": [],
             "operators": [],
             "references_and_ellipsis": [],
+            "elliptical_subject": [],
             "competing_interpretations": [
                 {
                     "interpretation": "获取者需由上下文判断",
@@ -103,8 +105,10 @@ def make_project(tmp_path):
                 }
             ],
             "relations": [],
+            "temporal_relations": [],
             "operators": [],
             "references_and_ellipsis": [],
+            "elliptical_subject": [],
             "competing_interpretations": [],
             "must_preserve": ["需要关系"],
             "must_not_invent": ["不得擅增时态"],

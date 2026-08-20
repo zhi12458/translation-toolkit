@@ -164,7 +164,7 @@ def build_artifact(inputs, analyses: Sequence[dict], batch_size: int, timeout: f
     project = inputs.project_document
     nullable = shared._nullable_project_string
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "project": {
             "project_id": project["project_id"].strip(),
             "title": nullable(project, "title"),

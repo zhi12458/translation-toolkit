@@ -86,9 +86,7 @@ def make_project(tmp_path):
 
 def valid_review_content(inputs, *, severity="major", finding_id=None):
     finding_id = finding_id or f"deepseek-{inputs.target_sha256[:12]}-L3-1"
-    return json.dumps(
-        {
-            "findings": [
+    findings = [
                 {
                     "finding_id": finding_id,
                     "paragraph_id": "L3",
@@ -99,8 +97,43 @@ def valid_review_content(inputs, *, severity="major", finding_id=None):
                     "status": "open",
                     "reviewer": "DeepSeek V4 Pro",
                 }
+            ]
+    return json.dumps(
+        {
+            "findings": findings,
+            "paragraph_audits": [
+                valid_paragraph_audit(paragraph_id, [finding_id] if paragraph_id == "L3" else [])
+                for paragraph_id in ("L1", "L3")
             ],
             "summary": "准确性复核完成，发现一项需要修正的问题。",
+        },
+        ensure_ascii=False,
+    )
+
+
+def valid_paragraph_audit(paragraph_id, finding_ids=None):
+    finding_ids = list(finding_ids or [])
+    status = "finding" if finding_ids else "preserved"
+    return {
+        "paragraph_id": paragraph_id,
+        "temporal_relations": "not_present",
+        "conditions": "not_present",
+        "negation": status,
+        "degree": "not_present",
+        "elliptical_subject": "not_present",
+        "semantic_roles": "finding" if finding_ids else "preserved",
+        "actor_or_state_holder": "本段主语和状态承担者已逐项核对。",
+        "cause_or_instrument": "本段无相关原因或工具省略。",
+        "finding_ids": finding_ids,
+    }
+
+
+def clear_review_content(paragraph_ids, summary="准确性复核完成，未发现问题。"):
+    return json.dumps(
+        {
+            "findings": [],
+            "paragraph_audits": [valid_paragraph_audit(item) for item in paragraph_ids],
+            "summary": summary,
         },
         ensure_ascii=False,
     )
@@ -242,7 +275,35 @@ def test_http_request_merges_provenance_and_writes_fresh_certificate(
     assert "source-analysis.json" not in serialized_payload
     assert "不做通用英文润色" in serialized_payload
     assert "意义修正约束" in serialized_payload
+    assert "逐段分别核对时间/时体、条件、否定和程度关系" in serialized_payload
+    assert "究竟是谁做或不做、谁处于该状态" in serialized_payload
+    assert "paragraph_audits" in serialized_payload
     assert "test-only-secret" not in capsys.readouterr().out
+
+
+def test_review_requires_audit_coverage_for_every_focus_paragraph(tmp_path):
+    project = make_project(tmp_path)
+    inputs = deepseek.load_project(project)
+    prefix = f"deepseek-{inputs.target_sha256[:12]}-"
+    document = json.loads(valid_review_content(inputs))
+    document["paragraph_audits"] = document["paragraph_audits"][:1]
+
+    with pytest.raises(deepseek.ReviewError, match="do not cover every focus paragraph"):
+        deepseek.validate_review_content(
+            json.dumps(document, ensure_ascii=False),
+            inputs.paragraph_ids,
+            finding_id_prefix=prefix,
+        )
+
+    document = json.loads(valid_review_content(inputs))
+    document["paragraph_audits"][1]["temporal_relations"] = "finding"
+    document["paragraph_audits"][1]["finding_ids"] = []
+    with pytest.raises(deepseek.ReviewError, match="without a corresponding finding"):
+        deepseek.validate_review_content(
+            json.dumps(document, ensure_ascii=False),
+            inputs.paragraph_ids,
+            finding_id_prefix=prefix,
+        )
 
 
 def test_environment_key_takes_priority_over_keychain(monkeypatch):
@@ -396,7 +457,7 @@ def test_safe_merge_preserves_history_and_is_idempotent(tmp_path):
     original = '{"finding_id":"human-1","status":"resolved","message":"历史"}\n'
     output.write_text(original, encoding="utf-8")
     inputs = deepseek.load_project(project)
-    base, _ = deepseek.validate_review_content(
+    base, _, _ = deepseek.validate_review_content(
         valid_review_content(inputs),
         inputs.paragraph_ids,
         finding_id_prefix=f"deepseek-{inputs.target_sha256[:12]}-",
@@ -420,7 +481,7 @@ def test_conflicting_finding_id_fails_before_write(tmp_path):
     original = json.dumps({"finding_id": finding_id, "message": "旧内容"}) + "\n"
     output = project / "review-findings.jsonl"
     output.write_text(original, encoding="utf-8")
-    base, _ = deepseek.validate_review_content(
+    base, _, _ = deepseek.validate_review_content(
         valid_review_content(inputs),
         inputs.paragraph_ids,
         finding_id_prefix=f"deepseek-{inputs.target_sha256[:12]}-",
@@ -568,9 +629,8 @@ def test_human_resolution_after_two_rounds_allows_final_recheck(
     finding["resolution_note"] = "人工依据上下文裁决并完成意义修正。"
     path.write_text(json.dumps(finding, ensure_ascii=False) + "\n", "utf-8")
 
-    clear_content = json.dumps(
-        {"findings": [], "summary": "人工裁决后的最终复核未发现阻断问题。"},
-        ensure_ascii=False,
+    clear_content = clear_review_content(
+        ["L1", "L3"], "人工裁决后的最终复核未发现阻断问题。"
     )
     urlopen.side_effect = lambda request, timeout: FakeHTTPResponse(
         api_envelope(inputs, clear_content)
@@ -702,6 +762,7 @@ def test_certificate_finding_ids_cover_complete_merged_history(tmp_path):
         model=deepseek.DEFAULT_MODEL,
         review_round=1,
         findings=[current],
+        paragraph_audits=[valid_paragraph_audit("L3", [current["finding_id"]])],
         merged_jsonl=merged,
         summary="完整历史测试。",
     )
@@ -719,6 +780,7 @@ def test_clear_round_does_not_count_as_a_failed_blocking_revision_cycle(tmp_path
         model=deepseek.DEFAULT_MODEL,
         review_round=3,
         findings=[current],
+        paragraph_audits=[valid_paragraph_audit("L3", [current["finding_id"]])],
         merged_jsonl=merged,
         summary="Earlier rounds were clear.",
         previous_status="clear",
@@ -728,6 +790,7 @@ def test_clear_round_does_not_count_as_a_failed_blocking_revision_cycle(tmp_path
         model=deepseek.DEFAULT_MODEL,
         review_round=4,
         findings=[current],
+        paragraph_audits=[valid_paragraph_audit("L3", [current["finding_id"]])],
         merged_jsonl=merged,
         summary="A consecutive blocking cycle remains.",
         previous_status="blocking",
@@ -793,10 +856,7 @@ def test_truncated_model_response_preserves_history(monkeypatch, tmp_path):
 def test_nonblocking_review_is_clear(monkeypatch, tmp_path):
     project = make_project(tmp_path)
     inputs = deepseek.load_project(project)
-    clear_content = json.dumps(
-        {"findings": [], "summary": "准确性复核完成，未发现问题。"},
-        ensure_ascii=False,
-    )
+    clear_content = clear_review_content(["L1", "L3"])
     monkeypatch.setenv("DEEPSEEK_API_KEY", "clear-secret")
     monkeypatch.setattr(
         deepseek.urllib.request,
@@ -830,9 +890,8 @@ def test_empty_current_response_cannot_hide_unresolved_historical_blocker(
     (project / "review-findings.jsonl").write_text(
         json.dumps(historical, ensure_ascii=False) + "\n", encoding="utf-8"
     )
-    clear_content = json.dumps(
-        {"findings": [], "summary": "本轮复核未发现新的问题。"},
-        ensure_ascii=False,
+    clear_content = clear_review_content(
+        ["L1", "L3"], "本轮复核未发现新的问题。"
     )
     monkeypatch.setenv("DEEPSEEK_API_KEY", "clear-secret")
     monkeypatch.setattr(
@@ -986,14 +1045,15 @@ def test_main_runs_all_focused_batches_before_one_atomic_clear_write(
     project = make_project(tmp_path)
     inputs = deepseek.load_project(project)
     calls = []
-    empty = json.dumps(
-        {"findings": [], "summary": "本批逐段复核完成，未发现问题。"},
-        ensure_ascii=False,
-    )
-
     def fake_urlopen(request, timeout):
-        calls.append(json.loads(request.data.decode("utf-8")))
-        return FakeHTTPResponse(api_envelope(inputs, empty))
+        payload = json.loads(request.data.decode("utf-8"))
+        calls.append(payload)
+        prompt = payload["messages"][1]["content"]
+        paragraph_id = "L1" if "<review-focus-ids>L1</review-focus-ids>" in prompt else "L3"
+        content = clear_review_content(
+            [paragraph_id], "本批逐段复核完成，未发现问题。"
+        )
+        return FakeHTTPResponse(api_envelope(inputs, content))
 
     monkeypatch.setenv("DEEPSEEK_API_KEY", "batch-secret")
     monkeypatch.setattr(deepseek.urllib.request, "urlopen", fake_urlopen)
@@ -1015,10 +1075,7 @@ def test_context_only_finding_rejects_entire_batch_run_without_writes(
 ):
     project = make_project(tmp_path)
     inputs = deepseek.load_project(project)
-    empty = json.dumps(
-        {"findings": [], "summary": "第一批复核完成，未发现问题。"},
-        ensure_ascii=False,
-    )
+    empty = clear_review_content(["L1"], "第一批复核完成，未发现问题。")
     invalid_context_finding = json.dumps(
         {
             "findings": [

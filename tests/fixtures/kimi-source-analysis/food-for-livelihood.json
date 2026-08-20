@@ -35,6 +35,7 @@
       {"type": "cost", "source_clause": "得到谋生的食粮", "target_clause": "多少生命在忍受痛苦，甚至丧生", "evidence": "仅仅为了得到谋生的食粮，就有多少生命在忍受痛苦，甚至丧生", "evidence_status": "contextual_inference", "notes": "全句重点是获取食粮所伴随的生命代价，不是食物被生产出来。"},
       {"type": "progression", "source_clause": "忍受痛苦", "target_clause": "丧生", "evidence": "甚至", "evidence_status": "explicit", "notes": "由受苦递进到死亡。"}
     ],
+    "temporal_relations": [],
     "operators": [
       {"kind": "degree", "marker": "仅仅", "scope": "为了得到谋生的食粮", "interpretation": "突出目的之基本与为此付出的代价之大", "evidence_status": "explicit", "notes": "不能遗漏其限制和强调作用。"},
       {"kind": "quantity", "marker": "多少", "scope": "生命", "interpretation": "反问式不定数量，强调数量之多", "evidence_status": "explicit", "notes": "不是确定数字。"},
@@ -44,6 +45,7 @@
       {"kind": "omitted_subject", "expression": null, "predicate": "得到", "role": "agent", "referent": null, "candidate_referents": ["多少生命", "泛指获取食粮者"], "evidence": "得到", "evidence_status": "ambiguous", "notes": "两种解释都不能仅凭本句定案。"},
       {"kind": "inherited_subject", "expression": null, "predicate": "丧生", "role": "patient", "referent": "多少生命", "candidate_referents": ["多少生命"], "evidence": "多少生命在忍受痛苦，甚至丧生", "evidence_status": "contextual_inference", "notes": "丧生省略的主体承接多少生命。"}
     ],
+    "elliptical_subject": [],
     "competing_interpretations": [
       {"interpretation": "得到食粮者与受苦、丧生的生命同指", "supporting_evidence": ["得到谋生的食粮", "多少生命"], "counterevidence": [], "evidence_status": "ambiguous"},
       {"interpretation": "得到食粮者为未明示的泛指人群，受苦、丧生者是为此付出代价的其他生命", "supporting_evidence": ["为了得到谋生的食粮", "多少生命在忍受痛苦，甚至丧生"], "counterevidence": [], "evidence_status": "ambiguous"}

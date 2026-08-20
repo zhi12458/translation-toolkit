@@ -98,8 +98,10 @@ def valid_paragraph(paragraph_id, source_text):
             }
         ],
         "relations": [],
+        "temporal_relations": [],
         "operators": [],
         "references_and_ellipsis": [],
+        "elliptical_subject": [],
         "competing_interpretations": [],
         "must_preserve": ["保留原句的判断关系"],
         "must_not_invent": ["不得擅增时态或情态"],
@@ -318,6 +320,120 @@ def test_schema_uses_closed_required_objects_and_nullable_unknowns():
         "contextual_inference",
         "ambiguous",
     ]
+
+
+def test_temporal_markers_require_dedicated_relations_and_must_preserve():
+    source = "我想，多数人出家时，也是为了解脱；出家后，仍要修行。"
+    paragraph = kimi.SourceParagraph("L1", source)
+    schema = kimi.load_analysis_schema()
+    analysis = valid_paragraph("L1", source)
+
+    with pytest.raises(kimi.AnalysisError, match="temporal_relations omits source marker 时"):
+        kimi.validate_batch_content(
+            json.dumps({"paragraphs": [analysis]}, ensure_ascii=False),
+            [paragraph], schema, source,
+        )
+
+    analysis["temporal_relations"] = [
+        {
+            "marker": "出家时",
+            "relation": "when",
+            "event_or_scope": "多数人最初出家的时点",
+            "linked_event": "为了解脱",
+            "evidence_status": "explicit",
+            "notes": "保留出家当时的初衷。",
+        },
+        {
+            "marker": "出家后",
+            "relation": "after",
+            "event_or_scope": "出家后的修行",
+            "linked_event": "多数人最初出家",
+            "evidence_status": "explicit",
+            "notes": "保留出家前后对照。",
+        },
+        {
+            "marker": "仍",
+            "relation": "continuation",
+            "event_or_scope": "修行持续不变",
+            "linked_event": None,
+            "evidence_status": "explicit",
+            "notes": "仍表示持续。",
+        },
+    ]
+    analysis["must_preserve"] = [
+        "“时”限定最初出家的时点",
+        "“后”建立出家前后关系",
+        "“仍”表示修行持续",
+    ]
+    validated = kimi.validate_batch_content(
+        json.dumps({"paragraphs": [analysis]}, ensure_ascii=False),
+        [paragraph], schema, source,
+    )
+    assert validated[0]["temporal_relations"][0]["relation"] == "when"
+
+
+def test_compressed_buddhist_parallel_requires_subject_and_separate_causes():
+    source = (
+        "像佛陀那样，智不住三有，悲不住涅槃。"
+        "因为智慧，所以超越轮回；因为慈悲，所以积极入世。"
+    )
+    paragraph = kimi.SourceParagraph("L1", source)
+    schema = kimi.load_analysis_schema()
+    analysis = valid_paragraph("L1", source)
+
+    with pytest.raises(kimi.AnalysisError, match="elliptical_subject omits"):
+        kimi.validate_batch_content(
+            json.dumps({"paragraphs": [analysis]}, ensure_ascii=False),
+            [paragraph], schema, source,
+        )
+
+    analysis["elliptical_subject"] = [
+        {
+            "clause": "智不住三有，悲不住涅槃",
+            "predicate": "不住",
+            "subject_resolution": "佛陀所示范的修行者",
+            "subject_evidence": "像佛陀那样",
+            "role_bindings": [
+                {
+                    "role": "state_holder",
+                    "participant": "佛陀所示范的修行者",
+                    "evidence": "像佛陀那样",
+                    "evidence_status": "contextual_inference",
+                    "notes": "修行者是不住两边的状态承担者。",
+                },
+                {
+                    "role": "cause",
+                    "participant": "智慧",
+                    "evidence": "因为智慧",
+                    "evidence_status": "explicit",
+                    "notes": "智慧说明不住三有的原因。",
+                },
+                {
+                    "role": "cause",
+                    "participant": "慈悲",
+                    "evidence": "因为慈悲",
+                    "evidence_status": "explicit",
+                    "notes": "慈悲说明不住涅槃的原因。",
+                },
+            ],
+            "evidence_status": "contextual_inference",
+            "notes": "不得把智慧或慈悲提升为不住的英文主语。",
+        }
+    ]
+    validated = kimi.validate_batch_content(
+        json.dumps({"paragraphs": [analysis]}, ensure_ascii=False),
+        [paragraph], schema, source,
+    )
+    assert validated[0]["elliptical_subject"][0]["subject_resolution"] == "佛陀所示范的修行者"
+
+    analysis["elliptical_subject"][0]["role_bindings"][0].update(
+        participant="智慧", evidence="智慧", evidence_status="explicit"
+    )
+    with pytest.raises(kimi.AnalysisError, match="promotes an explicit cause"):
+        kimi.validate_batch_content(
+            json.dumps({"paragraphs": [analysis]}, ensure_ascii=False),
+            [paragraph], schema, source,
+        )
 
 
 def test_environment_key_takes_priority_over_keychain(monkeypatch):

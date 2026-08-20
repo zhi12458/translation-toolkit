@@ -159,6 +159,7 @@ class SemanticReviewCertificate:
     status: str
     finding_ids: tuple
     findings_sha256: str
+    paragraph_audits: tuple
     generated_at: str
     summary: str
 
@@ -698,7 +699,7 @@ def semantic_review_from_json(text):
         "schema_version", "stage", "provider", "model", "source_sha256",
         "target_sha256", "review_round", "blocking_findings",
         "blocking_finding_ids", "status", "finding_ids", "findings_sha256",
-        "generated_at", "summary",
+        "paragraph_audits", "generated_at", "summary",
     }
     if not isinstance(document, dict):
         raise ValueError("semantic-review.json must contain an object")
@@ -708,8 +709,8 @@ def semantic_review_from_json(text):
             "semantic-review.json missing fields: " + ", ".join(missing)
         )
     reject_unknown_fields(document, required, "semantic-review.json")
-    if document["schema_version"] != 1:
-        raise ValueError("semantic-review.json schema_version must be 1")
+    if document["schema_version"] != 2:
+        raise ValueError("semantic-review.json schema_version must be 2")
     if document["stage"] != "semantic_review":
         raise ValueError("semantic-review.json stage must be semantic_review")
     provider = require_nonempty_string(
@@ -774,6 +775,46 @@ def semantic_review_from_json(text):
         raise ValueError(
             "semantic-review.json finding_ids must be unique non-empty strings"
         )
+    paragraph_audits = document["paragraph_audits"]
+    required_audit_fields = {
+        "paragraph_id", "temporal_relations", "conditions", "negation", "degree",
+        "elliptical_subject", "semantic_roles", "actor_or_state_holder",
+        "cause_or_instrument", "finding_ids",
+    }
+    audit_statuses = {"not_present", "preserved", "finding"}
+    if not isinstance(paragraph_audits, list) or not paragraph_audits:
+        raise ValueError("semantic-review.json paragraph_audits must be a non-empty array")
+    audit_ids = []
+    for index, audit in enumerate(paragraph_audits, start=1):
+        label = f"semantic-review.json paragraph_audits[{index}]"
+        if not isinstance(audit, dict) or set(audit) != required_audit_fields:
+            raise ValueError(f"{label} must contain every mandatory field and no others")
+        paragraph_id = require_nonempty_string(audit["paragraph_id"], f"{label} paragraph_id")
+        audit_ids.append(paragraph_id)
+        for dimension in (
+            "temporal_relations", "conditions", "negation", "degree",
+            "elliptical_subject", "semantic_roles",
+        ):
+            if audit[dimension] not in audit_statuses:
+                raise ValueError(f"{label} {dimension} has an invalid status")
+        if audit["semantic_roles"] == "not_present":
+            raise ValueError(f"{label} semantic_roles cannot be not_present")
+        for field in ("actor_or_state_holder", "cause_or_instrument"):
+            require_nonempty_string(audit[field], f"{label} {field}")
+        audit_finding_ids = audit["finding_ids"]
+        if (
+            not isinstance(audit_finding_ids, list)
+            or not all(isinstance(value, str) and value.strip() for value in audit_finding_ids)
+            or len(audit_finding_ids) != len(set(audit_finding_ids))
+        ):
+            raise ValueError(f"{label} finding_ids must be unique non-empty strings")
+        if any(audit[name] == "finding" for name in (
+            "temporal_relations", "conditions", "negation", "degree",
+            "elliptical_subject", "semantic_roles",
+        )) and not audit_finding_ids:
+            raise ValueError(f"{label} records a finding without finding_ids")
+    if len(audit_ids) != len(set(audit_ids)):
+        raise ValueError("semantic-review.json paragraph_audits paragraph_id values must be unique")
     generated_at = require_nonempty_string(
         document["generated_at"], "semantic-review.json generated_at"
     )
@@ -801,6 +842,7 @@ def semantic_review_from_json(text):
         status=status,
         finding_ids=tuple(finding_ids),
         findings_sha256=document["findings_sha256"],
+        paragraph_audits=tuple(paragraph_audits),
         generated_at=generated_at,
         summary=summary,
     )
@@ -1659,6 +1701,7 @@ def check_semantic_review(
     target_sha256=None,
     findings_sha256=None,
     findings=None,
+    expected_paragraph_ids=(),
     strict=False,
 ):
     """Verify that the final semantic review applies to the current manuscript."""
@@ -1686,6 +1729,19 @@ def check_semantic_review(
     finding_by_id = {
         finding["finding_id"]: finding for finding in (findings or [])
     }
+    audit_ids = tuple(audit["paragraph_id"] for audit in certificate.paragraph_audits)
+    if expected_paragraph_ids and audit_ids != tuple(expected_paragraph_ids):
+        failures.append(
+            "paragraph_audits do not exactly cover every non-blank source paragraph in order"
+        )
+    for audit in certificate.paragraph_audits:
+        for finding_id in audit["finding_ids"]:
+            finding = finding_by_id.get(finding_id)
+            if finding is None or finding.get("paragraph_id") != audit["paragraph_id"]:
+                failures.append(
+                    "paragraph_audits finding_ids do not match review history and paragraph"
+                )
+                break
     history_ids = tuple(
         finding["finding_id"] for finding in (findings or [])
     )
@@ -1893,6 +1949,7 @@ def run_checks(
                 target_sha256,
                 findings_sha256,
                 review_findings,
+                expected_paragraph_ids,
                 strict,
             ),
         ),

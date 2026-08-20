@@ -106,7 +106,7 @@ class InputAndStructureTests(unittest.TestCase):
 
     def test_late_first_blocking_cycle_is_valid_even_after_clear_rounds(self):
         document = {
-            "schema_version": 1,
+            "schema_version": 2,
             "stage": "semantic_review",
             "provider": "deepseek",
             "model": "deepseek-v4-pro",
@@ -118,6 +118,18 @@ class InputAndStructureTests(unittest.TestCase):
             "status": "blocking",
             "finding_ids": ["finding-1"],
             "findings_sha256": "3" * 64,
+            "paragraph_audits": [{
+                "paragraph_id": "L1",
+                "temporal_relations": "not_present",
+                "conditions": "not_present",
+                "negation": "preserved",
+                "degree": "not_present",
+                "elliptical_subject": "not_present",
+                "semantic_roles": "preserved",
+                "actor_or_state_holder": "本段角色已核对。",
+                "cause_or_instrument": "本段无相关原因或工具。",
+                "finding_ids": [],
+            }],
             "generated_at": "2026-08-13T00:00:00Z",
             "summary": "The first two rounds were clear; this is the first blocking cycle.",
         }
@@ -127,7 +139,7 @@ class InputAndStructureTests(unittest.TestCase):
 
     def test_clear_status_is_rejected_when_blockers_remain(self):
         document = {
-            "schema_version": 1,
+            "schema_version": 2,
             "stage": "semantic_review",
             "provider": "deepseek",
             "model": "deepseek-v4-pro",
@@ -139,6 +151,18 @@ class InputAndStructureTests(unittest.TestCase):
             "status": "clear",
             "finding_ids": ["finding-1"],
             "findings_sha256": "3" * 64,
+            "paragraph_audits": [{
+                "paragraph_id": "L1",
+                "temporal_relations": "not_present",
+                "conditions": "not_present",
+                "negation": "finding",
+                "degree": "not_present",
+                "elliptical_subject": "not_present",
+                "semantic_roles": "preserved",
+                "actor_or_state_holder": "本段角色已核对。",
+                "cause_or_instrument": "本段无相关原因或工具。",
+                "finding_ids": ["finding-1"],
+            }],
             "generated_at": "2026-08-13T00:00:00Z",
             "summary": "Invalid clear certificate.",
         }
@@ -225,7 +249,7 @@ class CliStrictModeTests(unittest.TestCase):
                 findings_sha256 = hashlib.sha256(findings_path.read_bytes()).hexdigest()
                 (temp / "source-analysis.json").write_text(
                     json.dumps({
-                        "schema_version": 1,
+                        "schema_version": 2,
                         "project": {
                             "project_id": "test-project",
                             "title": "Test project",
@@ -258,8 +282,10 @@ class CliStrictModeTests(unittest.TestCase):
                             "paragraph_id": "L1",
                             "predicates": [],
                             "relations": [],
+                            "temporal_relations": [],
                             "operators": [],
                             "references_and_ellipsis": [],
+                            "elliptical_subject": [],
                             "competing_interpretations": [],
                             "must_preserve": ["保留空性的意义"],
                             "must_not_invent": ["不得擅增情态"],
@@ -270,7 +296,7 @@ class CliStrictModeTests(unittest.TestCase):
                 )
                 (temp / "semantic-review.json").write_text(
                     json.dumps({
-                        "schema_version": 1,
+                        "schema_version": 2,
                         "stage": "semantic_review",
                         "provider": "internal",
                         "model": "test-internal-reviewer",
@@ -282,6 +308,18 @@ class CliStrictModeTests(unittest.TestCase):
                         "status": "clear",
                         "finding_ids": ["test-001"],
                         "findings_sha256": findings_sha256,
+                        "paragraph_audits": [{
+                            "paragraph_id": "L1",
+                            "temporal_relations": "not_present",
+                            "conditions": "not_present",
+                            "negation": "preserved",
+                            "degree": "not_present",
+                            "elliptical_subject": "not_present",
+                            "semantic_roles": "preserved",
+                            "actor_or_state_holder": "本段状态承担者已核对。",
+                            "cause_or_instrument": "本段无相关原因或工具。",
+                            "finding_ids": [],
+                        }],
                         "generated_at": "2026-08-12T00:00:00Z",
                         "summary": "Test-only internal semantic review certificate.",
                     }) + "\n",

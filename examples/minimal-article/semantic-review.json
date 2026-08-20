@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "stage": "semantic_review",
   "provider": "internal",
   "model": "fixture-human-review",
@@ -13,6 +13,32 @@
     "example-001"
   ],
   "findings_sha256": "7e59ffe2f5976d22f0d27596bf96bdfce1a0c0b0965f6f7008b8507fe02f21b8",
+  "paragraph_audits": [
+    {
+      "paragraph_id": "L1",
+      "temporal_relations": "not_present",
+      "conditions": "not_present",
+      "negation": "not_present",
+      "degree": "not_present",
+      "elliptical_subject": "not_present",
+      "semantic_roles": "preserved",
+      "actor_or_state_holder": "标题无省略主语。",
+      "cause_or_instrument": "标题无相关原因或工具。",
+      "finding_ids": []
+    },
+    {
+      "paragraph_id": "L3",
+      "temporal_relations": "not_present",
+      "conditions": "not_present",
+      "negation": "not_present",
+      "degree": "preserved",
+      "elliptical_subject": "not_present",
+      "semantic_roles": "preserved",
+      "actor_or_state_holder": "我们是观察者。",
+      "cause_or_instrument": "正念是帮助因素。",
+      "finding_ids": []
+    }
+  ],
   "generated_at": "2026-08-12T00:00:00Z",
   "summary": "Internal fixture certificate for deterministic gate testing; this does not claim an external model run."
 }

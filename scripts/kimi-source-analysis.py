@@ -518,9 +518,11 @@ def build_prompt(
 1. 列出实义谓词、规范化中文释义和逐字原文证据。
 2. 为每个谓词标注施事、体验者、受事、主题、受益者、接受者、工具等参与者。原文省略或无法确定的角色必须填 null，并标 ambiguous；不得为了填满结构而虚构参与者。例如“得到谋生的食粮”中，得到的 theme 是“谋生的食粮”，但 agent 在句内未明示，应为 null/ambiguous，不得概括成“人们”。
 3. 标注目的、原因、条件、结果、转折、递进、代价等分句关系。
-4. 标注时态、体、情态、否定、数量和程度的作用域；中文未明确的英语时态或情态不得擅自推导。
-5. 标注指代、省略主语、承前主语和可竞争解释。语法上邻近的主语不能自动充当另一谓词的隐含施事。participant 或 referent 为 null 时绝不能标 explicit；上下文只能推定存在该角色时标 contextual_inference，存在竞争解释时标 ambiguous。
-6. 给出必须保留和不得擅增的意义约束。原文没有义务、可能、建议或确定过去时，就应在不得擅增中明确说明。
+4. 把时间先后、时点、持续、完成、重复和“才/仍/再”等时体关系单列到 temporal_relations。凡当前段落中作为时间或时体标记的“时、后、才、已、仍、再”，以及“已经、仍然、再次、之后、以前、以后、后来、然后、曾经、正在、至今”等，不得只放在 operators 或普通 relations；每个标记必须有 temporal_relations 项，并在 must_preserve 中逐字出现，明确它约束的事件及与另一事件的先后关系。
+5. 标注时态、体、情态、否定、数量和程度的作用域；中文未明确的英语时态或情态不得擅自推导。
+6. 标注指代、省略主语、承前主语和可竞争解释。语法上邻近的主语不能自动充当另一谓词的隐含施事。participant 或 referent 为 null 时绝不能标 explicit；上下文只能推定存在该角色时标 contextual_inference，存在竞争解释时标 ambiguous。
+7. 遇到佛法格言、文言压缩句、对仗句或其他省略句，必须另填 elliptical_subject。先反问“究竟是谁做、谁处于该状态”，再把 agent、cause、instrument、state_holder 分开记录；智慧、慈悲等原因或工具不得仅因位于句首就提升为英文施事或状态承担者。必须结合紧随其后的“因为……所以……”等解释句判定。例如“智不住三有，悲不住涅槃”中的“不住”由佛陀所示范的修行者承担，智慧与慈悲说明为什么或凭什么不住，不能分析成智慧或慈悲自身在安住或不安住。
+8. 给出必须保留和不得擅增的意义约束。原文没有义务、可能、建议或确定过去时，就应在不得擅增中明确说明。
 
 保持分析精炼，只记录会约束翻译的实义，不要逐句穷举普通谓词、功能词或重复同一信息。每段只选择最多八个最可能导致错译的关键谓词；参与者只保留会影响英文主语、宾语或歧义判断的角色。notes、释义和约束各用一个短句，不复述证据。作者和讲座信息可采用最小分析。主标题、目录项和章节标题必须识别中心词、修饰范围、目的或路径关系，以及平行标题之间的区别；只记录这些约束，不擅自扩写主题。重复出现的同一标题应给出一致的 must_preserve 约束；存在两个可信标题义时标 needs_human，不能因标题短而跳过歧义。
 
@@ -767,6 +769,46 @@ def _require_source_evidence(fragment: object, source: str, path: str) -> None:
 
 _CJK_TEXT_RE = re.compile(r"[\u3400-\u4dbf\u4e00-\u9fff]")
 _ENGLISH_WORD_RE = re.compile(r"[A-Za-z]+(?:['’-][A-Za-z]+)?")
+_TEMPORAL_COMPOSITE_MARKERS = (
+    "已经", "仍然", "再次", "之后", "以前", "以后", "后来", "然后",
+    "曾经", "正在", "至今", "从此", "当时", "同时",
+)
+_TEMPORAL_SINGLE_MARKERS = ("时", "后", "才", "已", "仍", "再")
+_NON_OPERATOR_TIME_WORDS = ("时代", "时间", "时期", "时空", "时尚")
+_ELLIPTICAL_PARALLEL_RE = re.compile(
+    r"(?:^|[，；。])[^，；。]{1,12}不[^，；。]{1,12}[，；]"
+    r"[^，；。]{1,12}不[^，；。]{1,12}"
+)
+
+
+def _required_temporal_markers(paragraph_text: str) -> tuple[str, ...]:
+    """Return explicit high-risk temporal/aspect markers in source order."""
+    masked = paragraph_text
+    for word in _NON_OPERATOR_TIME_WORDS:
+        masked = masked.replace(word, " " * len(word))
+    hits: list[tuple[int, str]] = []
+    occupied: set[int] = set()
+    for marker in _TEMPORAL_COMPOSITE_MARKERS:
+        for match in re.finditer(re.escape(marker), masked):
+            hits.append((match.start(), marker))
+            occupied.update(range(match.start(), match.end()))
+    for marker in _TEMPORAL_SINGLE_MARKERS:
+        for match in re.finditer(re.escape(marker), masked):
+            if match.start() not in occupied:
+                hits.append((match.start(), marker))
+    ordered: list[str] = []
+    for _position, marker in sorted(hits):
+        if marker not in ordered:
+            ordered.append(marker)
+    return tuple(ordered)
+
+
+def _causal_participants(paragraph_text: str) -> tuple[str, ...]:
+    values = [
+        match.group(1).strip()
+        for match in re.finditer(r"因为([^，。；]{1,20})[，,]?所以", paragraph_text)
+    ]
+    return tuple(value for value in values if value)
 
 
 def _require_chinese_analysis_text(value: object, path: str) -> None:
@@ -838,6 +880,35 @@ def _validate_semantic_evidence(
         )
         _require_chinese_analysis_text(relation["notes"], f"{relation_path}.notes")
 
+    temporal_markers: list[str] = []
+    for temporal_index, temporal in enumerate(analysis["temporal_relations"]):
+        temporal_path = f"{path}.temporal_relations[{temporal_index}]"
+        ambiguous = ambiguous or temporal["evidence_status"] == "ambiguous"
+        _require_source_evidence(
+            temporal["marker"], paragraph_text, f"{temporal_path}.marker"
+        )
+        temporal_markers.append(temporal["marker"])
+        _require_chinese_analysis_text(
+            temporal["event_or_scope"], f"{temporal_path}.event_or_scope"
+        )
+        if temporal["linked_event"] is not None:
+            _require_chinese_analysis_text(
+                temporal["linked_event"], f"{temporal_path}.linked_event"
+            )
+        _require_chinese_analysis_text(temporal["notes"], f"{temporal_path}.notes")
+
+    required_temporal = _required_temporal_markers(paragraph_text)
+    preserved_text = "\n".join(analysis["must_preserve"])
+    for marker in required_temporal:
+        if not any(marker in recorded for recorded in temporal_markers):
+            raise AnalysisError(
+                f"source analysis field {path}.temporal_relations omits source marker {marker}"
+            )
+        if marker not in preserved_text:
+            raise AnalysisError(
+                f"source analysis field {path}.must_preserve omits temporal marker {marker}"
+            )
+
     for operator_index, operator in enumerate(analysis["operators"]):
         operator_path = f"{path}.operators[{operator_index}]"
         ambiguous = ambiguous or operator["evidence_status"] == "ambiguous"
@@ -874,6 +945,75 @@ def _validate_semantic_evidence(
             reference["evidence"], complete_source, f"{reference_path}.evidence"
         )
         _require_chinese_analysis_text(reference["notes"], f"{reference_path}.notes")
+
+    causal_participants = set(_causal_participants(paragraph_text))
+    for ellipsis_index, ellipsis in enumerate(analysis["elliptical_subject"]):
+        ellipsis_path = f"{path}.elliptical_subject[{ellipsis_index}]"
+        ambiguous = ambiguous or ellipsis["evidence_status"] == "ambiguous"
+        _require_source_evidence(
+            ellipsis["clause"], paragraph_text, f"{ellipsis_path}.clause"
+        )
+        _require_source_evidence(
+            ellipsis["predicate"], ellipsis["clause"], f"{ellipsis_path}.predicate"
+        )
+        _require_source_evidence(
+            ellipsis["subject_evidence"], complete_source,
+            f"{ellipsis_path}.subject_evidence",
+        )
+        if ellipsis["subject_resolution"] is not None:
+            _require_chinese_analysis_text(
+                ellipsis["subject_resolution"],
+                f"{ellipsis_path}.subject_resolution",
+            )
+        roles: set[str] = set()
+        for role_index, binding in enumerate(ellipsis["role_bindings"]):
+            role_path = f"{ellipsis_path}.role_bindings[{role_index}]"
+            role = binding["role"]
+            roles.add(role)
+            status = binding["evidence_status"]
+            ambiguous = ambiguous or status == "ambiguous"
+            if status == "explicit" and (
+                binding["participant"] is None or binding["evidence"] is None
+            ):
+                raise AnalysisError(
+                    f"source analysis field {role_path} lacks evidence for an explicit role"
+                )
+            _require_source_evidence(
+                binding["evidence"], complete_source, f"{role_path}.evidence"
+            )
+            if status == "explicit":
+                _require_source_evidence(
+                    binding["participant"], paragraph_text, f"{role_path}.participant"
+                )
+            if (
+                role in {"agent", "state_holder"}
+                and binding["participant"] in causal_participants
+            ):
+                raise AnalysisError(
+                    f"source analysis field {role_path} promotes an explicit cause "
+                    "to agent or state_holder"
+                )
+            _require_chinese_analysis_text(binding["notes"], f"{role_path}.notes")
+        if not roles.intersection({"agent", "state_holder"}):
+            raise AnalysisError(
+                f"source analysis field {ellipsis_path} must identify an agent or state_holder"
+            )
+        _require_chinese_analysis_text(ellipsis["notes"], f"{ellipsis_path}.notes")
+
+    if _ELLIPTICAL_PARALLEL_RE.search(paragraph_text):
+        if not analysis["elliptical_subject"]:
+            raise AnalysisError(
+                f"source analysis field {path}.elliptical_subject omits a compressed parallel clause"
+            )
+        all_roles = {
+            binding["role"]
+            for item in analysis["elliptical_subject"]
+            for binding in item["role_bindings"]
+        }
+        if causal_participants and not all_roles.intersection({"cause", "instrument"}):
+            raise AnalysisError(
+                f"source analysis field {path}.elliptical_subject does not separate cause or instrument"
+            )
 
     for interpretation_index, interpretation in enumerate(
         analysis["competing_interpretations"]
@@ -965,7 +1105,7 @@ def build_artifact(
 ) -> dict:
     project = inputs.project_document
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "project": {
             "project_id": project["project_id"].strip(),
             "title": _nullable_project_string(project, "title"),

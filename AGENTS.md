@@ -264,6 +264,24 @@ After translating, load `mpi-translation-review` (self mode) to check:
 - Grammar, fluency, calques
 - Missing content (mid-paragraph truncation)
 - Inconsistency (same term translated differently)
+
+### Strategy M semantic gates
+
+For audited Strategy M runs, the locked source-analysis and bilingual-review
+interfaces are mandatory in addition to ordinary translation QA:
+
+- Flash must record high-risk time and aspect relations separately in
+  `temporal_relations`. Source markers such as `时`, `后`, `才`, `已`, `仍`,
+  and `再` must also appear verbatim in `must_preserve`; local validation
+  rejects missing coverage.
+- For Buddhist aphorisms, compact classical clauses, parallel formulas, and
+  ellipsis, Flash must populate `elliptical_subject` and keep agent, cause,
+  instrument, and state-holder roles distinct. An explicit cause must not be
+  promoted to the acting or state-bearing subject.
+- Each independent Pro review must return one `paragraph_audits` record per
+  nonblank source paragraph, separately checking temporal/aspect, condition,
+  negation, degree, elliptical subject, and semantic roles. A certificate with
+  missing paragraph coverage cannot pass strict QA.
 - Main title and every heading for semantic accuracy, plainness, concision,
   parallel structure, and exact TOC/body consistency
 

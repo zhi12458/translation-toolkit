@@ -84,6 +84,24 @@ OPTIONAL_FINDING_FIELDS = frozenset({"resolution_note"})
 PROVENANCE_FIELDS = frozenset(
     {"stage", "provider", "model", "source_sha256", "target_sha256"}
 )
+AUDIT_DIMENSIONS = (
+    "temporal_relations",
+    "conditions",
+    "negation",
+    "degree",
+    "elliptical_subject",
+    "semantic_roles",
+)
+AUDIT_STATUSES = frozenset({"not_present", "preserved", "finding"})
+REQUIRED_AUDIT_FIELDS = frozenset(
+    {
+        "paragraph_id",
+        *AUDIT_DIMENSIONS,
+        "actor_or_state_holder",
+        "cause_or_instrument",
+        "finding_ids",
+    }
+)
 
 
 class ReviewError(Exception):
@@ -492,11 +510,14 @@ def build_prompt(
 完整逐段检查：
 1. 实义谓词与动作类型是否对应（例如“得到”不得漂移成“生产”）。
 2. 施事、体验者、受事、受益者、接受者、工具，以及省略主语、指代和同指关系是否被正确保留；原文歧义不得被译文擅自确定。
-3. 目的、原因、条件、结果、转折、递进和代价关系，以及否定、数量、程度词的作用域是否对应。
-4. 时体与情态是否有依据；特别检查擅增 must、have to、could、should 或把普遍陈述改成过去事件。
-5. 是否有遗漏、增加、佛教术语错义、经文或教义歪曲。
+3. 逐段分别核对时间/时体、条件、否定和程度关系，不得把其中任何一项并入笼统的“意义无误”。特别检查“时、后、才、已、仍、再”等是否在英文中保留其事件先后、持续、完成或重复约束。
+4. 时体与情态是否有依据；特别检查擅增 must、have to、could、should，或把普遍陈述改成过去事件。
+5. 遇到佛法格言、文言压缩句、对仗句和省略句，必须反向追问：“究竟是谁做或不做、谁处于该状态、为什么或凭什么如此？”分别核对施事者、原因、工具和状态承担者。不得为了保留中文对仗而把智慧、慈悲等原因或工具提升为英文主语。例如“智不住三有，悲不住涅槃”应核对不住者是佛陀所示范的修行者，智慧与慈悲说明其原因或凭借，而不是智慧与慈悲自身在安住或不安住。
+6. 是否有遗漏、增加、佛教术语错义、经文或教义歪曲。
 
 本阶段不做通用英文润色，不评价仅属偏好的文风、节奏、措辞或格式，也不直接决定最终英文表达。每个 suggestion 必须用中文写成“意义修正约束”（说明必须保留/不得增补的意义），不得给出可直接替换的英文句子。message、suggestion 和 summary 均须以中文表述。只报告真实、可核验的问题；译文准确时 findings 为空数组。只能报告 <review-focus-ids> 中列出的段落；<adjacent-context> 只用于消解指代，绝不能为它生成 finding。
+
+每个 review-focus 段落都必须产生一个 paragraph_audits 项，即使没有发现问题；六项检查必须分别填写。not_present 只表示原文没有该现象，preserved 表示原义已保留，finding 表示已生成对应 finding。actor_or_state_holder 与 cause_or_instrument 必须用中文简述逆向角色核对结论；没有相关省略或因果时明确写“无相关省略主语”或“无相关原因或工具”，不得留空。finding 状态必须列出本段对应的 finding_ids。
 
 最终必须在 message.content 返回单个 JSON 对象，不得使用 Markdown 围栏，不得返回空内容。对象必须严格且仅有以下结构：
 {{
@@ -512,9 +533,23 @@ def build_prompt(
       "reviewer": "{REVIEWER}"
     }}
   ],
+  "paragraph_audits": [
+    {{
+      "paragraph_id": "{example_paragraph_id}",
+      "temporal_relations": "not_present|preserved|finding",
+      "conditions": "not_present|preserved|finding",
+      "negation": "not_present|preserved|finding",
+      "degree": "not_present|preserved|finding",
+      "elliptical_subject": "not_present|preserved|finding",
+      "semantic_roles": "preserved|finding",
+      "actor_or_state_holder": "用中文说明究竟是谁做、谁不做或谁承担状态",
+      "cause_or_instrument": "用中文说明为什么或凭什么；没有则明确写无",
+      "finding_ids": []
+    }}
+  ],
   "summary": "用中文简述本次准确性复核结论"
 }}
-所有字符串必须非空。finding_id 必须唯一且必须以 {finding_prefix} 开头。status 必须为 open，reviewer 必须逐字等于 {REVIEWER}。不得增加任何字段。"""
+所有字符串必须非空。finding_id 必须唯一且必须以 {finding_prefix} 开头。status 必须为 open，reviewer 必须逐字等于 {REVIEWER}。paragraph_audits 必须按 review-focus-ids 顺序覆盖每段恰好一次，不得增加任何字段。"""
 
     focus_list = ", ".join(batch.ordered_paragraph_ids)
     user_prompt = f"""请盲态、独立复核以下项目分段快照。本批必须逐一检查
@@ -628,7 +663,7 @@ def validate_review_content(
     allowed_paragraph_ids: frozenset[str],
     *,
     finding_id_prefix: str,
-) -> tuple[list[dict], str]:
+) -> tuple[list[dict], list[dict], str]:
     try:
         document = json.loads(content)
     except json.JSONDecodeError as exc:
@@ -637,13 +672,18 @@ def validate_review_content(
             f"(line {exc.lineno}, column {exc.colno})"
         ) from exc
 
-    if not isinstance(document, dict) or set(document) != {"findings", "summary"}:
+    if not isinstance(document, dict) or set(document) != {
+        "findings", "paragraph_audits", "summary"
+    }:
         raise ReviewError(
-            "DeepSeek review content must contain exactly findings and summary"
+            "DeepSeek review content must contain exactly findings, paragraph_audits, and summary"
         )
     findings = document["findings"]
     if not isinstance(findings, list):
         raise ReviewError("DeepSeek review findings must be an array")
+    paragraph_audits = document["paragraph_audits"]
+    if not isinstance(paragraph_audits, list):
+        raise ReviewError("DeepSeek review paragraph_audits must be an array")
     summary = _require_nonempty_string(document["summary"], "summary")
     if not _contains_cjk(summary):
         raise ReviewError("DeepSeek review summary must be written in Chinese")
@@ -709,7 +749,72 @@ def validate_review_content(
                 )
         validated.append(normalized)
 
-    return validated, summary
+    findings_by_id = {finding["finding_id"]: finding for finding in validated}
+    validated_audits: list[dict] = []
+    audited_ids: set[str] = set()
+    for index, audit in enumerate(paragraph_audits, start=1):
+        label = f"paragraph_audits[{index}]"
+        if not isinstance(audit, dict):
+            raise ReviewError(f"DeepSeek review {label} must be an object")
+        if set(audit) != REQUIRED_AUDIT_FIELDS:
+            raise ReviewError(
+                f"DeepSeek review {label} must contain every mandatory audit field and no others"
+            )
+        normalized = dict(audit)
+        paragraph_id = _require_nonempty_string(
+            audit["paragraph_id"], f"{label}.paragraph_id"
+        )
+        if paragraph_id not in allowed_paragraph_ids or paragraph_id in audited_ids:
+            raise ReviewError(
+                f"DeepSeek review {label}.paragraph_id must cover one allowed paragraph exactly once"
+            )
+        audited_ids.add(paragraph_id)
+        normalized["paragraph_id"] = paragraph_id
+        for dimension in AUDIT_DIMENSIONS:
+            status = _require_nonempty_string(audit[dimension], f"{label}.{dimension}")
+            if status not in AUDIT_STATUSES:
+                raise ReviewError(
+                    f"DeepSeek review {label}.{dimension} has an invalid audit status"
+                )
+            if dimension == "semantic_roles" and status == "not_present":
+                raise ReviewError(
+                    f"DeepSeek review {label}.semantic_roles cannot be not_present"
+                )
+            normalized[dimension] = status
+        for note_field in ("actor_or_state_holder", "cause_or_instrument"):
+            note = _require_nonempty_string(audit[note_field], f"{label}.{note_field}")
+            if not _contains_cjk(note):
+                raise ReviewError(
+                    f"DeepSeek review {label}.{note_field} must be written in Chinese"
+                )
+            normalized[note_field] = note
+        audit_finding_ids = audit["finding_ids"]
+        if (
+            not isinstance(audit_finding_ids, list)
+            or len(audit_finding_ids) != len(set(audit_finding_ids))
+        ):
+            raise ReviewError(
+                f"DeepSeek review {label}.finding_ids must be a unique array"
+            )
+        for finding_id in audit_finding_ids:
+            finding = findings_by_id.get(finding_id)
+            if finding is None or finding["paragraph_id"] != paragraph_id:
+                raise ReviewError(
+                    f"DeepSeek review {label}.finding_ids must identify findings for the same paragraph"
+                )
+        if any(normalized[dimension] == "finding" for dimension in AUDIT_DIMENSIONS) and not audit_finding_ids:
+            raise ReviewError(
+                f"DeepSeek review {label} marks an issue without a corresponding finding"
+            )
+        normalized["finding_ids"] = list(audit_finding_ids)
+        validated_audits.append(normalized)
+
+    if audited_ids != allowed_paragraph_ids:
+        raise ReviewError(
+            "DeepSeek review paragraph_audits do not cover every focus paragraph exactly once"
+        )
+
+    return validated, validated_audits, summary
 
 
 def add_provenance(
@@ -1092,6 +1197,7 @@ def build_semantic_certificate(
     model: str,
     review_round: int,
     findings: Sequence[dict],
+    paragraph_audits: Sequence[dict],
     merged_jsonl: str,
     summary: str,
     previous_status: str | None = None,
@@ -1118,7 +1224,7 @@ def build_semantic_certificate(
     else:
         status = "blocking"
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "stage": "semantic_review",
         "provider": PROVIDER,
         "model": model,
@@ -1133,6 +1239,7 @@ def build_semantic_certificate(
         # deletion or substitution of any previously certified record.
         "finding_ids": history_finding_ids,
         "findings_sha256": hashlib.sha256(merged_jsonl.encode("utf-8")).hexdigest(),
+        "paragraph_audits": list(paragraph_audits),
         "generated_at": generated_at
         or datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         "summary": summary,
@@ -1245,6 +1352,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
         finding_prefix = f"deepseek-{inputs.target_sha256[:12]}-"
         findings: list[dict] = []
+        paragraph_audits: list[dict] = []
         summaries: list[str] = []
         seen_finding_ids: set[str] = set()
         for batch_number, batch in enumerate(batches, start=1):
@@ -1256,7 +1364,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 batch=batch,
                 reasoning_effort=args.reasoning_effort,
             )
-            batch_findings, batch_summary = validate_review_content(
+            batch_findings, batch_audits, batch_summary = validate_review_content(
                 content,
                 batch.paragraph_ids,
                 finding_id_prefix=finding_prefix,
@@ -1269,6 +1377,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                     )
                 seen_finding_ids.add(finding_id)
             findings.extend(batch_findings)
+            paragraph_audits.extend(batch_audits)
             summaries.append(f"第{batch_number}/{len(batches)}批：{batch_summary}")
             print(
                 f"Validated focused DeepSeek batch {batch_number}/{len(batches)}.",
@@ -1282,6 +1391,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             model=model,
             review_round=review_round,
             findings=findings,
+            paragraph_audits=paragraph_audits,
             merged_jsonl=merged_jsonl,
             summary=summary,
             previous_status=previous_status,
