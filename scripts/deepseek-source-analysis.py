@@ -49,6 +49,9 @@ CROSS_COMPONENT_RECONCILIATION_MODE = (
 COMPONENT_EVIDENCE_PREVALIDATION_MODE = (
     "verbatim-source-evidence-before-component-acceptance"
 )
+COMPONENT_SEMANTIC_PREVALIDATION_MODE = (
+    "intra-component-v3-rules-before-component-acceptance"
+)
 COMPONENT_FIELDS = {
     "core": ("predicates", "relations"),
     "temporal": ("temporal_relations",),
@@ -519,8 +522,11 @@ def validate_component_source_evidence(
     complete_source: str,
     component: str,
 ) -> None:
-    """Reject nonverbatim evidence before accepting a generated component."""
+    """Reject component-local v3 violations before accepting model output."""
     path = f"$.paragraphs[{partial['paragraph_id']}]"
+    shared._validate_component_semantics(
+        partial, paragraph_text, complete_source, path, component
+    )
     if component == "core":
         for predicate_index, predicate in enumerate(partial["predicates"]):
             predicate_path = f"{path}.predicates[{predicate_index}]"
@@ -877,6 +883,9 @@ def build_artifact(
             ),
             "component_evidence_prevalidation_mode": (
                 COMPONENT_EVIDENCE_PREVALIDATION_MODE
+            ),
+            "component_semantic_prevalidation_mode": (
+                COMPONENT_SEMANTIC_PREVALIDATION_MODE
             ),
             "analysis_components": list(COMPONENT_FIELDS),
             "component_context_windows": COMPONENT_CONTEXT_WINDOWS,

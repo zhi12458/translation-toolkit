@@ -532,7 +532,11 @@ regenerating the same Python in execute_code each turn.
   fields are also checked for verbatim occurrence in the current paragraph or
   frozen complete source, as appropriate. Invalid evidence rejects only that
   component and uses the existing bounded same-model, same-input, same-schema
-  component retry; the complete v3 validator remains the final gate.
+  component retry. The same component-local prevalidation also applies every
+  v3 rule decidable without a merge: Chinese analytical prose, explicit/null/
+  evidence self-consistency, temporal-marker coverage, reference and compressed-
+  clause role checks, and internal allusion preservation. Cross-component
+  status and temporal-to-constraint rules remain in the complete v3 final gate.
 - `toolkit/scripts/freeze-target.py <source.dj> <sol-draft.dj> --output
   <target.dj>` — validate line and blank-line alignment, then atomically freeze
   Sol's English as the canonical target.

@@ -3,6 +3,8 @@ import json
 from pathlib import Path
 import sys
 
+import pytest
+
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts" / "deepseek-source-analysis.py"
@@ -119,6 +121,7 @@ def test_deepseek_checkpoint_configuration_binds_window_strategy():
     assert "transient_batch_retry_limit" not in config
     assert "cross_component_reconciliation_mode" not in config
     assert "component_evidence_prevalidation_mode" not in config
+    assert "component_semantic_prevalidation_mode" not in config
     assert config["analysis_components"] == list(MODULE.COMPONENT_FIELDS)
     assert config["component_context_windows"] == MODULE.COMPONENT_CONTEXT_WINDOWS
 
@@ -148,6 +151,9 @@ def test_final_artifact_records_transient_batch_recovery(tmp_path):
     )
     assert config["component_evidence_prevalidation_mode"] == (
         MODULE.COMPONENT_EVIDENCE_PREVALIDATION_MODE
+    )
+    assert config["component_semantic_prevalidation_mode"] == (
+        MODULE.COMPONENT_SEMANTIC_PREVALIDATION_MODE
     )
     MODULE.shared._validate_instance(
         artifact, MODULE.shared.load_analysis_schema()
@@ -386,6 +392,257 @@ def test_nonverbatim_constraints_evidence_retries_same_component(
     assert partials[0]["competing_interpretations"][0]["supporting_evidence"] == [
         "条件具足"
     ]
+
+
+def test_english_operator_analysis_retries_same_component(tmp_path, monkeypatch):
+    project = tmp_path / "deepseek-operator-language-retry"
+    project.mkdir()
+    example = ROOT / "examples" / "minimal-article"
+    for name in ("translation-project.yaml", "term-map.yaml"):
+        (project / name).write_bytes((example / name).read_bytes())
+    (project / "source.dj").write_text(
+        "唯其如此，才能赋予这一身份应有的内涵。\n", encoding="utf-8"
+    )
+    inputs = MODULE.shared.load_project(project)
+    schema = MODULE.shared.load_analysis_schema()
+    batch = inputs.paragraphs
+    attempts = []
+
+    def fake_request(*args):
+        attempts.append(args[-1])
+        interpretation = (
+            "Only then can this identity receive the meaning it deserves."
+            if len(attempts) == 1
+            else "才标明赋予身份内涵以此前条件成立为前提"
+        )
+        return json.dumps(
+            {
+                "paragraphs": [
+                    {
+                        "paragraph_id": batch[0].paragraph_id,
+                        "operators": [
+                            {
+                                "kind": "degree",
+                                "marker": "才",
+                                "scope": "赋予这一身份应有的内涵",
+                                "interpretation": interpretation,
+                                "evidence_status": "explicit",
+                                "notes": "不能遗漏条件成立后才出现结果的限制。",
+                            }
+                        ],
+                    }
+                ]
+            },
+            ensure_ascii=False,
+        )
+
+    monkeypatch.setattr(MODULE, "request_component", fake_request)
+    monkeypatch.setattr(MODULE.time, "sleep", lambda _seconds: None)
+    partials = MODULE.request_validated_component(
+        inputs,
+        batch,
+        schema,
+        "operator_quantity_degree",
+        MODULE.Credential("not-used", "test"),
+        30.0,
+        1,
+    )
+
+    assert len(attempts) == 2
+    assert partials[0]["operators"][0]["interpretation"].startswith("才标明")
+
+
+@pytest.mark.parametrize(
+    ("component", "partial"),
+    [
+        (
+            "core",
+            {
+                "paragraph_id": "L1",
+                "predicates": [
+                    {
+                        "predicate": "结果",
+                        "canonical_meaning": "The result occurs after the condition.",
+                        "evidence": "结果",
+                        "participants": [],
+                    }
+                ],
+                "relations": [],
+            },
+        ),
+        (
+            "temporal",
+            {
+                "paragraph_id": "L1",
+                "temporal_relations": [
+                    {
+                        "marker": "才",
+                        "relation": "after",
+                        "event_or_scope": "The result occurs after the condition.",
+                        "linked_event": None,
+                        "evidence_status": "explicit",
+                        "notes": "保留先后条件。",
+                    }
+                ],
+            },
+        ),
+        (
+            "operator_quantity_degree",
+            {
+                "paragraph_id": "L1",
+                "operators": [
+                    {
+                        "kind": "degree",
+                        "marker": "才",
+                        "scope": "结果",
+                        "interpretation": "The condition must hold before the result.",
+                        "evidence_status": "explicit",
+                        "notes": "保留条件限制。",
+                    }
+                ],
+            },
+        ),
+        (
+            "reference",
+            {
+                "paragraph_id": "L1",
+                "references_and_ellipsis": [
+                    {
+                        "expression": "条件",
+                        "referent": "条件",
+                        "evidence": "条件",
+                        "evidence_status": "explicit",
+                        "notes": "The reference points to the stated condition.",
+                    }
+                ],
+                "elliptical_subject": [],
+            },
+        ),
+        (
+            "constraints",
+            {
+                "paragraph_id": "L1",
+                "cultural_allusions": [],
+                "competing_interpretations": [
+                    {
+                        "interpretation": "The condition precedes the result.",
+                        "supporting_evidence": ["条件"],
+                        "counterevidence": [],
+                        "evidence_status": "explicit",
+                    }
+                ],
+                "must_preserve": ["保留条件"],
+                "must_not_invent": ["不得新增条件"],
+                "status": "clear",
+            },
+        ),
+    ],
+)
+def test_component_semantic_prevalidator_covers_all_component_language_fields(
+    component, partial
+):
+    with pytest.raises(MODULE.AnalysisError, match="Chinese analytical text"):
+        MODULE.shared._validate_component_semantics(
+            partial,
+            "条件具足，才会结果。",
+            "条件具足，才会结果。",
+            "$.paragraphs[L1]",
+            component,
+        )
+
+
+@pytest.mark.parametrize(
+    ("component", "source", "partial", "message"),
+    [
+        (
+            "core",
+            "条件具足，才会结果。",
+            {
+                "paragraph_id": "L1",
+                "predicates": [
+                    {
+                        "predicate": "结果",
+                        "canonical_meaning": "条件具足后出现结果",
+                        "evidence": "结果",
+                        "participants": [
+                            {
+                                "role": "agent",
+                                "participant": None,
+                                "evidence": "结果",
+                                "evidence_status": "explicit",
+                                "notes": "原文没有明示行动者。",
+                            }
+                        ],
+                    }
+                ],
+                "relations": [],
+            },
+            "null participant explicit",
+        ),
+        (
+            "temporal",
+            "条件具足，才会结果。",
+            {"paragraph_id": "L1", "temporal_relations": []},
+            "omits source marker",
+        ),
+        (
+            "operator_quantity_degree",
+            "条件具足，才会结果。",
+            {
+                "paragraph_id": "L1",
+                "operators": [
+                    {
+                        "kind": "degree",
+                        "marker": None,
+                        "scope": "结果",
+                        "interpretation": "才表示条件限制",
+                        "evidence_status": "explicit",
+                        "notes": "不能省略限制。",
+                    }
+                ],
+            },
+            "explicit operator",
+        ),
+        (
+            "reference",
+            "此条件具足，才会结果。",
+            {
+                "paragraph_id": "L1",
+                "references_and_ellipsis": [
+                    {
+                        "expression": "此",
+                        "referent": None,
+                        "evidence": "此",
+                        "evidence_status": "explicit",
+                        "notes": "指向前述条件。",
+                    }
+                ],
+                "elliptical_subject": [],
+            },
+            "null referent explicit",
+        ),
+        (
+            "constraints",
+            "穷则独善其身。",
+            {
+                "paragraph_id": "L1",
+                "cultural_allusions": [],
+                "competing_interpretations": [],
+                "must_preserve": ["保留修养语境"],
+                "must_not_invent": ["不得解释为自私"],
+                "status": "clear",
+            },
+            "omits known allusion",
+        ),
+    ],
+)
+def test_component_semantic_prevalidator_catches_intracomponent_consistency(
+    component, source, partial, message
+):
+    with pytest.raises(MODULE.AnalysisError, match=message):
+        MODULE.shared._validate_component_semantics(
+            partial, source, source, "$.paragraphs[L1]", component
+        )
 
 
 def test_component_retry_keeps_successful_components(monkeypatch, tmp_path):

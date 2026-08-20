@@ -920,6 +920,268 @@ def _require_chinese_analysis_text(value: object, path: str) -> None:
         )
 
 
+def _validate_component_semantics(
+    analysis: dict,
+    paragraph_text: str,
+    complete_source: str,
+    path: str,
+    component: str,
+) -> None:
+    """Apply v3 rules that are decidable within one generated component."""
+    if component == "core":
+        for predicate_index, predicate in enumerate(analysis["predicates"]):
+            predicate_path = f"{path}.predicates[{predicate_index}]"
+            _require_source_evidence(
+                predicate["evidence"], paragraph_text, f"{predicate_path}.evidence"
+            )
+            _require_chinese_analysis_text(
+                predicate["canonical_meaning"], f"{predicate_path}.canonical_meaning"
+            )
+            for role_index, participant in enumerate(predicate["participants"]):
+                role_path = f"{predicate_path}.participants[{role_index}]"
+                status = participant["evidence_status"]
+                if participant["participant"] is None and status == "explicit":
+                    raise AnalysisError(
+                        f"source analysis field {role_path} cannot mark a null participant explicit"
+                    )
+                if status == "explicit" and (
+                    participant["participant"] is None
+                    or participant["evidence"] is None
+                ):
+                    raise AnalysisError(
+                        f"source analysis field {role_path} lacks evidence for an explicit role"
+                    )
+                _require_source_evidence(
+                    participant["evidence"],
+                    paragraph_text if status == "explicit" else complete_source,
+                    f"{role_path}.evidence",
+                )
+                if status == "explicit":
+                    _require_source_evidence(
+                        participant["participant"],
+                        paragraph_text,
+                        f"{role_path}.participant",
+                    )
+                    if participant["participant"] not in participant["evidence"]:
+                        raise AnalysisError(
+                            f"source analysis field {role_path}.participant is not "
+                            "supported by its own evidence"
+                        )
+                _require_chinese_analysis_text(
+                    participant["notes"], f"{role_path}.notes"
+                )
+        for relation_index, relation in enumerate(analysis["relations"]):
+            relation_path = f"{path}.relations[{relation_index}]"
+            if relation["evidence_status"] == "explicit" and relation["evidence"] is None:
+                raise AnalysisError(
+                    f"source analysis field {relation_path} lacks evidence for an explicit relation"
+                )
+            _require_source_evidence(
+                relation["evidence"], paragraph_text, f"{relation_path}.evidence"
+            )
+            _require_chinese_analysis_text(
+                relation["notes"], f"{relation_path}.notes"
+            )
+        return
+
+    if component == "temporal":
+        temporal_markers: list[str] = []
+        for temporal_index, temporal in enumerate(analysis["temporal_relations"]):
+            temporal_path = f"{path}.temporal_relations[{temporal_index}]"
+            _require_source_evidence(
+                temporal["marker"], paragraph_text, f"{temporal_path}.marker"
+            )
+            temporal_markers.append(temporal["marker"])
+            _require_chinese_analysis_text(
+                temporal["event_or_scope"], f"{temporal_path}.event_or_scope"
+            )
+            if temporal["linked_event"] is not None:
+                _require_chinese_analysis_text(
+                    temporal["linked_event"], f"{temporal_path}.linked_event"
+                )
+            _require_chinese_analysis_text(
+                temporal["notes"], f"{temporal_path}.notes"
+            )
+        for marker in _required_temporal_markers(paragraph_text):
+            if not any(marker in recorded for recorded in temporal_markers):
+                raise AnalysisError(
+                    f"source analysis field {path}.temporal_relations omits source marker {marker}"
+                )
+        return
+
+    if component == "operators" or component.startswith("operator_"):
+        for operator_index, operator in enumerate(analysis["operators"]):
+            operator_path = f"{path}.operators[{operator_index}]"
+            if operator["evidence_status"] == "explicit" and operator["marker"] is None:
+                raise AnalysisError(
+                    f"source analysis field {operator_path} lacks a marker for an explicit operator"
+                )
+            _require_source_evidence(
+                operator["marker"], paragraph_text, f"{operator_path}.marker"
+            )
+            _require_chinese_analysis_text(
+                operator["interpretation"], f"{operator_path}.interpretation"
+            )
+            _require_chinese_analysis_text(
+                operator["notes"], f"{operator_path}.notes"
+            )
+        return
+
+    if component == "reference":
+        for reference_index, reference in enumerate(
+            analysis["references_and_ellipsis"]
+        ):
+            reference_path = f"{path}.references_and_ellipsis[{reference_index}]"
+            status = reference["evidence_status"]
+            if reference["referent"] is None and status == "explicit":
+                raise AnalysisError(
+                    f"source analysis field {reference_path} cannot mark a null referent explicit"
+                )
+            if status == "explicit" and reference["evidence"] is None:
+                raise AnalysisError(
+                    f"source analysis field {reference_path} lacks evidence for an explicit reference"
+                )
+            _require_source_evidence(
+                reference["expression"], paragraph_text, f"{reference_path}.expression"
+            )
+            _require_source_evidence(
+                reference["evidence"], complete_source, f"{reference_path}.evidence"
+            )
+            _require_chinese_analysis_text(
+                reference["notes"], f"{reference_path}.notes"
+            )
+
+        causal_participants = set(_causal_participants(paragraph_text))
+        for ellipsis_index, ellipsis in enumerate(analysis["elliptical_subject"]):
+            ellipsis_path = f"{path}.elliptical_subject[{ellipsis_index}]"
+            _require_source_evidence(
+                ellipsis["clause"], paragraph_text, f"{ellipsis_path}.clause"
+            )
+            _require_source_evidence(
+                ellipsis["predicate"], ellipsis["clause"], f"{ellipsis_path}.predicate"
+            )
+            _require_source_evidence(
+                ellipsis["subject_evidence"],
+                complete_source,
+                f"{ellipsis_path}.subject_evidence",
+            )
+            if ellipsis["subject_resolution"] is not None:
+                _require_chinese_analysis_text(
+                    ellipsis["subject_resolution"],
+                    f"{ellipsis_path}.subject_resolution",
+                )
+            roles: set[str] = set()
+            for role_index, binding in enumerate(ellipsis["role_bindings"]):
+                role_path = f"{ellipsis_path}.role_bindings[{role_index}]"
+                role = binding["role"]
+                roles.add(role)
+                status = binding["evidence_status"]
+                if status == "explicit" and (
+                    binding["participant"] is None or binding["evidence"] is None
+                ):
+                    raise AnalysisError(
+                        f"source analysis field {role_path} lacks evidence for an explicit role"
+                    )
+                _require_source_evidence(
+                    binding["evidence"], complete_source, f"{role_path}.evidence"
+                )
+                if status == "explicit":
+                    _require_source_evidence(
+                        binding["participant"], paragraph_text, f"{role_path}.participant"
+                    )
+                if (
+                    role in {"agent", "state_holder"}
+                    and binding["participant"] in causal_participants
+                ):
+                    raise AnalysisError(
+                        f"source analysis field {role_path} promotes an explicit cause "
+                        "to agent or state_holder"
+                    )
+                _require_chinese_analysis_text(
+                    binding["notes"], f"{role_path}.notes"
+                )
+            if not roles.intersection({"agent", "state_holder"}):
+                raise AnalysisError(
+                    f"source analysis field {ellipsis_path} must identify an agent or state_holder"
+                )
+            _require_chinese_analysis_text(
+                ellipsis["notes"], f"{ellipsis_path}.notes"
+            )
+
+        if _ELLIPTICAL_PARALLEL_RE.search(paragraph_text):
+            if not analysis["elliptical_subject"]:
+                raise AnalysisError(
+                    f"source analysis field {path}.elliptical_subject omits a compressed parallel clause"
+                )
+            all_roles = {
+                binding["role"]
+                for item in analysis["elliptical_subject"]
+                for binding in item["role_bindings"]
+            }
+            if causal_participants and not all_roles.intersection({"cause", "instrument"}):
+                raise AnalysisError(
+                    f"source analysis field {path}.elliptical_subject does not separate cause or instrument"
+                )
+        return
+
+    if component == "constraints":
+        allusion_expressions: list[str] = []
+        for allusion_index, allusion in enumerate(analysis["cultural_allusions"]):
+            allusion_path = f"{path}.cultural_allusions[{allusion_index}]"
+            _require_source_evidence(
+                allusion["expression"], paragraph_text, f"{allusion_path}.expression"
+            )
+            allusion_expressions.append(allusion["expression"])
+            for field in ("contextual_meaning", "translation_constraint", "notes"):
+                _require_chinese_analysis_text(allusion[field], f"{allusion_path}.{field}")
+            if allusion["source_or_origin"] is not None:
+                _require_chinese_analysis_text(
+                    allusion["source_or_origin"], f"{allusion_path}.source_or_origin"
+                )
+            for sense_index, sense in enumerate(allusion["competing_senses"]):
+                _require_chinese_analysis_text(
+                    sense, f"{allusion_path}.competing_senses[{sense_index}]"
+                )
+        for expression in _required_cultural_allusions(paragraph_text):
+            if expression not in allusion_expressions:
+                raise AnalysisError(
+                    f"source analysis field {path}.cultural_allusions omits known allusion {expression}"
+                )
+        preserved_text = "\n".join(analysis["must_preserve"])
+        for expression in allusion_expressions:
+            if expression not in preserved_text:
+                raise AnalysisError(
+                    f"source analysis field {path}.must_preserve omits cultural allusion {expression}"
+                )
+        for interpretation_index, interpretation in enumerate(
+            analysis["competing_interpretations"]
+        ):
+            interpretation_path = (
+                f"{path}.competing_interpretations[{interpretation_index}]"
+            )
+            _require_chinese_analysis_text(
+                interpretation["interpretation"],
+                f"{interpretation_path}.interpretation",
+            )
+            for evidence_index, evidence in enumerate(
+                interpretation["supporting_evidence"]
+                + interpretation["counterevidence"]
+            ):
+                _require_source_evidence(
+                    evidence,
+                    complete_source,
+                    f"{interpretation_path}.evidence[{evidence_index}]",
+                )
+        for constraint_name in ("must_preserve", "must_not_invent"):
+            for constraint_index, constraint in enumerate(analysis[constraint_name]):
+                _require_chinese_analysis_text(
+                    constraint, f"{path}.{constraint_name}[{constraint_index}]"
+                )
+        return
+
+    raise AnalysisError("unknown source-analysis component")
+
+
 def _validate_semantic_evidence(
     analysis: dict,
     paragraph_text: str,

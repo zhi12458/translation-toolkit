@@ -158,6 +158,10 @@
           "type": "string",
           "enum": ["verbatim-source-evidence-before-component-acceptance"]
         },
+        "component_semantic_prevalidation_mode": {
+          "type": "string",
+          "enum": ["intra-component-v3-rules-before-component-acceptance"]
+        },
         "analysis_components": {
           "type": "array",
           "minItems": 7,
